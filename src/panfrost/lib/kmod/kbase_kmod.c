@@ -49,6 +49,8 @@
 #include "util/bitscan.h"
 #include "util/list.h"
 
+void (*pan_kmod_kbase_fault_hook)(uint64_t sideband, uint32_t status);
+
 extern const struct pan_kmod_ops kbase_kmod_ops;
 
 /* ---- kbase UAPI, recovered by measurement ------------------------------------------------- */
@@ -2455,6 +2457,8 @@ kbase_csf_thread(void *arg)
                       "sideband 0x%016" PRIx64 ", queue %u",
                       handle, kind < ARRAY_SIZE(kinds) ? kinds[kind] : "unknown", kind, status,
                       status & 0xff, sideband, kind == 1 ? notes[o + 36] : 0);
+            if (pan_kmod_kbase_fault_hook)
+               pan_kmod_kbase_fault_hook(sideband, status);
             pthread_mutex_lock(&c->lock);
             list_for_each_entry(struct pan_kmod_kbase_csf_group, g, &c->groups, link) {
                if (g->handle == handle)

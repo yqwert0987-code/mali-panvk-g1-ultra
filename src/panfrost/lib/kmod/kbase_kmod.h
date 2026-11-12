@@ -194,4 +194,9 @@ bool pan_kmod_kbase_csf_wait(struct pan_kmod_kbase_csf_group *group, uint64_t se
 int pan_kmod_kbase_csf_fence_fd(struct pan_kmod_kbase_csf_group *group, uint64_t seq);
 bool pan_kmod_kbase_csf_group_faulted(const struct pan_kmod_kbase_csf_group *group);
 
+/* Optional: called from the fault notification thread for every queue group fault, after the
+ * kernel module has logged it, with the fault's sideband word and status. Used by the Vulkan
+ * driver to explain faults in its geometry shader emulation. */
+extern void (*pan_kmod_kbase_fault_hook)(uint64_t sideband, uint32_t status);
+
 #endif /* KBASE_KMOD_H */

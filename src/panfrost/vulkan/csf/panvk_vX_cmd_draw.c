@@ -27,6 +27,7 @@
 #include "panvk_cmd_ts.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
+#include "panvk_gs_diag.h"
 #include "panvk_image.h"
 #include "panvk_image_view.h"
 #include "panvk_instance.h"
@@ -3846,6 +3847,29 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
    if (indirect && !setup.gpu)
       return;
 
+   {
+      struct panvk_gs_diag_rec dr = {
+         .kind = "gs",
+         .topology = gs_topology(draw->prim),
+         .vpp = vpp,
+         .instances = inst,
+         .records = recs,
+         .invocations = invocations,
+         .out_verts = out_verts,
+         .out_indices = out_indices,
+         .indirect = indirect,
+      };
+      panvk_gs_diag_add(&dr, "in_pos", in_pos.gpu, (uint64_t)recs * inst * 16);
+      panvk_gs_diag_add(&dr, "in_gen", in_gen.gpu, (uint64_t)recs * inst * vs->gs.rec_stride);
+      panvk_gs_diag_add(&dr, "out_pos", out_pos.gpu, (uint64_t)out_verts * 16);
+      panvk_gs_diag_add(&dr, "out_gen", out_gen.gpu,
+                        (uint64_t)out_verts * out_rec->gs.rec_stride);
+      panvk_gs_diag_add(&dr, "out_idx", out_idx.gpu, (uint64_t)out_indices * 4);
+      panvk_gs_diag_add(&dr, "saved", saved.gpu, PANVK_GS_SAVED_REGS * 4);
+      panvk_gs_diag_add(&dr, "setup", setup.gpu, sizeof(struct libpan_gs_indirect));
+      panvk_gs_diag_commit(&dr);
+   }
+
    cmdbuf->state.gfx.gs.xfb_counts = 0;
    cmdbuf->state.gfx.gs.xfb_staging = 0;
    cmdbuf->state.gfx.gs.xfb_invocations = 0;
@@ -4236,6 +4260,32 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
        (tes->gs.rec_stride && !tes_gen.gpu) || !tes_idx.gpu || !saved.gpu || !vs_offsets ||
        !tes_offsets || (gs && !gs_offsets))
       return;
+
+   {
+      struct panvk_gs_diag_rec dr = {
+         .kind = "tess",
+         .topology = tess_vpp,
+         .vpp = tess_vpp,
+         .instances = inst,
+         .records = recs,
+         .invocations = gs_invocations,
+         .out_verts = out_verts,
+         .out_indices = out_indices,
+         .indirect = indirect,
+      };
+      panvk_gs_diag_add(&dr, "blob", blob.gpu, size);
+      panvk_gs_diag_add(&dr, "in_pos", in_pos.gpu, (uint64_t)recs * inst * 16);
+      panvk_gs_diag_add(&dr, "in_gen", in_gen.gpu, (uint64_t)recs * inst * vs->gs.rec_stride);
+      panvk_gs_diag_add(&dr, "tes_pos", tes_pos.gpu, (uint64_t)cap * 16);
+      panvk_gs_diag_add(&dr, "tes_gen", tes_gen.gpu, (uint64_t)cap * tes->gs.rec_stride);
+      panvk_gs_diag_add(&dr, "tes_idx", tes_idx.gpu, (uint64_t)cap * 4);
+      panvk_gs_diag_add(&dr, "gs_pos", gs_pos.gpu, (uint64_t)out_verts * 16);
+      panvk_gs_diag_add(&dr, "gs_gen", gs_gen.gpu,
+                        gs ? (uint64_t)out_verts * gs->gs.rec_stride : 0);
+      panvk_gs_diag_add(&dr, "gs_idx", gs_idx.gpu, (uint64_t)out_indices * 4);
+      panvk_gs_diag_add(&dr, "saved", saved.gpu, PANVK_GS_SAVED_REGS * 4);
+      panvk_gs_diag_commit(&dr);
+   }
 
    /* Transform feedback from the last stage before the rasterizer, as in gs_draw. The tess eval
     * shader emits one point per tessellator index; emit_xfb_jobs groups them back into the
