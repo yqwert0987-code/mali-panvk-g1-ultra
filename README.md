@@ -114,6 +114,7 @@ it, and writes a package to `dist/`: a zip with `meta.json`, `libvulkan_panfrost
 |---|---|
 | `PANVK_DEBUG=startup` | logs why the device could not be created |
 | `PANVK_FORCE_IDVS=1` | turns index-driven vertex shading back on (off by default on Bifrost) |
+| `PANVK_DEVICE_NAME=1` | reports the device as `PanVK-<GPU>` instead of `Mali-<GPU>` (the default, which tools such as PanProbe expect) |
 | `PANVK_NO_MEDIUMP=1` | compiles `mediump` shader code at 32 bits |
 | `MESA_SHADER_CACHE_DISABLE=true` | turns the disk shader cache off |
 | `MESA_LOG=file` | writes the driver's log, including the details of a GPU fault, to a file |

@@ -481,12 +481,18 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    device->formats.all = pan_format_table(arch);
    device->formats.blendable = pan_blendable_format_table(arch);
 
-   /* XCLIPSE: report "PanVK-G76 MC12" rather than "Mali-G76 MC12", so the driver in use can be
-    * told from Arm's at a glance. The model name itself stays "Mali-..." for everything else. */
+   /* Report "Mali-G76 MC12" by default, which is what tools such as PanProbe and some
+    * launchers look for. Set PANVK_DEVICE_NAME=1 to report "PanVK-G76 MC12" instead, so the
+    * driver in use can be told from Arm's at a glance. */
    const char *model_name = device->model->name;
-   if (!strncmp(model_name, "Mali-", 5))
-      model_name += 5;
-   snprintf(device->name, sizeof(device->name), "PanVK-%s MC%u", model_name, core_count);
+   const char *name_opt = os_get_option("PANVK_DEVICE_NAME");
+   if (name_opt && name_opt[0] == '1') {
+      if (!strncmp(model_name, "Mali-", 5))
+         model_name += 5;
+      snprintf(device->name, sizeof(device->name), "PanVK-%s MC%u", model_name, core_count);
+   } else {
+      snprintf(device->name, sizeof(device->name), "%s MC%u", model_name, core_count);
+   }
 
    result = get_core_masks(device, instance);
    if (result != VK_SUCCESS)
