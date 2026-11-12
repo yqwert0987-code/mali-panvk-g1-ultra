@@ -26,6 +26,12 @@ struct panvk_gs_diag_rec {
    uint32_t indirect;
    uint32_t nbufs;
    uint64_t seq;
+   /* CPU mappings of the index and position buffers, dumped for the newest draw when a fault
+    * arrives. May read stale data if the GPU's writes are not yet visible to the CPU. */
+   const uint32_t *dump_idx;
+   uint32_t dump_idx_count;
+   const float *dump_pos;
+   uint32_t dump_pos_count;
    struct {
       const char *name;
       uint64_t addr;

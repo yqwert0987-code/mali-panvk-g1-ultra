@@ -3858,6 +3858,10 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
          .out_verts = out_verts,
          .out_indices = out_indices,
          .indirect = indirect,
+         .dump_idx = out_idx.cpu,
+         .dump_idx_count = out_indices,
+         .dump_pos = out_pos.cpu,
+         .dump_pos_count = out_verts,
       };
       panvk_gs_diag_add(&dr, "in_pos", in_pos.gpu, (uint64_t)recs * inst * 16);
       panvk_gs_diag_add(&dr, "in_gen", in_gen.gpu, (uint64_t)recs * inst * vs->gs.rec_stride);

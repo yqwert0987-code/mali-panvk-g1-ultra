@@ -6,6 +6,7 @@
 
 #include <inttypes.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "kmod/kbase_kmod.h"
@@ -66,6 +67,31 @@ dump_on_fault(uint64_t sideband, uint32_t status)
          else
             mesa_loge("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64, r->buf[i].name, start,
                       r->buf[i].size);
+      }
+   }
+
+   /* The newest draw's index and position buffers, as the CPU sees them. */
+   if (total) {
+      const struct panvk_gs_diag_rec *r = &ring[(next_seq - 1) % RING_SIZE];
+      const uint32_t nidx = r->dump_idx_count < 96 ? r->dump_idx_count : 96;
+      const uint32_t npos = r->dump_pos_count < 24 ? r->dump_pos_count : 24;
+
+      if (r->dump_idx) {
+         mesa_loge("gs-diag: newest draw out_idx (%u of %u words):", nidx, r->dump_idx_count);
+         for (uint32_t i = 0; i < nidx; i += 12) {
+            char line[12 * 12 + 1];
+            int len = 0;
+            for (uint32_t j = i; j < i + 12 && j < nidx; j++)
+               len += snprintf(line + len, sizeof(line) - len, "%x ", r->dump_idx[j]);
+            mesa_loge("gs-diag:   [%3u] %s", i, line);
+         }
+      }
+
+      if (r->dump_pos) {
+         mesa_loge("gs-diag: newest draw out_pos (%u of %u vertices):", npos, r->dump_pos_count);
+         for (uint32_t i = 0; i < npos; i++)
+            mesa_loge("gs-diag:   v%-2u %g %g %g %g", i, r->dump_pos[i * 4], r->dump_pos[i * 4 + 1],
+                      r->dump_pos[i * 4 + 2], r->dump_pos[i * 4 + 3]);
       }
    }
 
