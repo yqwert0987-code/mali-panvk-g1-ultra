@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include "drm-uapi/drm_fourcc.h"
 #include "util/log.h"
@@ -112,6 +113,20 @@ u_gralloc_get_buffer_basic_info(struct u_gralloc *gralloc,
    int ret;
 
    ret = gralloc->ops.get_buffer_basic_info(gralloc, hnd, &info);
+
+   /* The first few buffers' layouts are logged, so a presentation glitch can be traced to the
+    * way a buffer was read: which path read it, and what layout it came out as. */
+   {
+      static int logged;
+      const native_handle_t *h = hnd->handle;
+      if (p_atomic_inc_return(&logged) <= 24)
+         mesa_logi("gralloc buffer: path=%d ret=%d hal_format=0x%x pixel_stride=%d fds=%d ints=%d "
+                   "-> fourcc=0x%08x modifier=0x%" PRIx64 " planes=%d stride0=%d offset0=%d "
+                   "size=%" PRIu64,
+                   u_gralloc_get_type(gralloc), ret, hnd->hal_format, hnd->pixel_stride,
+                   h ? h->numFds : -1, h ? h->numInts : -1, info.drm_fourcc, info.modifier,
+                   info.num_planes, info.strides[0], info.offsets[0], info.alloc_size);
+   }
 
    if (ret)
       return ret;
