@@ -4617,6 +4617,8 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    if (!panvk_priv_mem_check_alloc(vs->spd))
       return;
 
+   panvk_stat_count(PANVK_STAT_DRAW);
+
    if (!draw.indirect.buffer_dev_addr)
       panvk_stats_add_draw(&cmdbuf->state.gfx, &cmdbuf->vk.dynamic_graphics_state, &draw);
 
@@ -4631,6 +4633,7 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    }
 
    if (cmdbuf->state.gfx.tess.tes) {
+      panvk_stat_count(PANVK_STAT_TESS);
       if (!draw.indirect.buffer_dev_addr) {
          gfx_state_set_dirty(cmdbuf, VS_PUSH_UNIFORMS);
          tess_draw(cmdbuf, &draw, 0);
@@ -4654,6 +4657,9 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
       : polygon_mode_draw(cmdbuf, &draw) ? GS_EMULATION_POLYGON_MODE
                                          : GS_EMULATION_NONE;
    if (mode != GS_EMULATION_NONE) {
+      panvk_stat_count(mode == GS_EMULATION_APP   ? PANVK_STAT_GS_APP
+                       : mode == GS_EMULATION_XFB ? PANVK_STAT_XFB
+                                                  : PANVK_STAT_POLYGON);
       if (!draw.indirect.buffer_dev_addr) {
          gfx_state_set_dirty(cmdbuf, VS_PUSH_UNIFORMS);
          gs_draw(cmdbuf, &draw, mode, 0);

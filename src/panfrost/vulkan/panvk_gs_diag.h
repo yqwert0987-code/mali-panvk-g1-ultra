@@ -53,4 +53,20 @@ panvk_gs_diag_add(struct panvk_gs_diag_rec *rec, const char *name, uint64_t addr
 /* Stores a copy of rec in the ring and installs the fault hook on first use. */
 void panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec);
 
+/*
+ * Opt-in draw statistics: when PANVK_STATS is set to a file path, a line with the per-second rate
+ * of each kind of draw is appended to that file every two seconds. Without it the counters cost
+ * one relaxed atomic add per draw.
+ */
+enum panvk_stat {
+   PANVK_STAT_DRAW,
+   PANVK_STAT_TESS,
+   PANVK_STAT_GS_APP,
+   PANVK_STAT_XFB,
+   PANVK_STAT_POLYGON,
+   PANVK_STAT_COUNT,
+};
+
+void panvk_stat_count(enum panvk_stat stat);
+
 #endif

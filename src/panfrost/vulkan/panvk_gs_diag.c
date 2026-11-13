@@ -11,6 +11,8 @@
 
 #include "kmod/kbase_kmod.h"
 #include "util/log.h"
+#include "util/os_misc.h"
+#include "util/os_time.h"
 
 #define RING_SIZE 32
 /* How many of the newest records are listed in full when a fault arrives. */
@@ -113,4 +115,67 @@ panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec)
    slot->seq = next_seq++;
 
    pthread_mutex_unlock(&diag_lock);
+}
+
+#define STATS_INTERVAL_NS 2000000000ull
+
+static uint64_t stat_counts[PANVK_STAT_COUNT];
+static uint64_t stat_prev[PANVK_STAT_COUNT];
+static uint64_t stat_last_ns;
+static uint64_t stat_start_ns;
+/* 0: not looked at yet, 1: off, 2: on. */
+static int stats_mode;
+static FILE *stats_file;
+static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void
+stats_init(void)
+{
+   pthread_mutex_lock(&stats_lock);
+   if (!stats_mode) {
+      const char *path = os_get_option("PANVK_STATS");
+      if (path && path[0])
+         stats_file = fopen(path, "a");
+      if (stats_file) {
+         stat_start_ns = stat_last_ns = os_time_get_nano();
+         stats_mode = 2;
+      } else {
+         stats_mode = 1;
+      }
+   }
+   pthread_mutex_unlock(&stats_lock);
+}
+
+void
+panvk_stat_count(enum panvk_stat stat)
+{
+   __atomic_fetch_add(&stat_counts[stat], 1, __ATOMIC_RELAXED);
+
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) != 2)
+      return;
+
+   const uint64_t now = os_time_get_nano();
+   if (now - __atomic_load_n(&stat_last_ns, __ATOMIC_RELAXED) < STATS_INTERVAL_NS)
+      return;
+   if (pthread_mutex_trylock(&stats_lock))
+      return;
+
+   const double secs = (now - stat_last_ns) / 1e9;
+   uint64_t d[PANVK_STAT_COUNT];
+   for (int i = 0; i < PANVK_STAT_COUNT; i++) {
+      const uint64_t c = __atomic_load_n(&stat_counts[i], __ATOMIC_RELAXED);
+      d[i] = c - stat_prev[i];
+      stat_prev[i] = c;
+   }
+   fprintf(stats_file,
+           "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f\n",
+           (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
+           d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
+           d[PANVK_STAT_POLYGON] / secs);
+   fflush(stats_file);
+   __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
+
+   pthread_mutex_unlock(&stats_lock);
 }
