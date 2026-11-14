@@ -12,6 +12,7 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include "genxml/gen_macros.h"
 
 #include "drm-uapi/panthor_drm.h"
@@ -4197,9 +4198,26 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
 
    /* 64 is maxTessellationGenerationLevel, where a quad domain is 64x64 quads of two
     * triangles. */
-   const uint32_t cap =
+   uint32_t cap =
       indirect ? PANVK_TESS_MAX_INDICES
                : MIN2((uint64_t)nr_patches * 64 * 64 * 6, PANVK_TESS_MAX_INDICES);
+
+   /* PANVK_TESS_CAP=<indices>: opt-in upper bound on the indices one tessellated draw may
+    * produce, to shrink the worst-case buffers allocated below (they are sized for tessellation
+    * level 64 before the GPU knows the real level). The tess eval job runs min(the real count,
+    * cap) primitives, so a smaller cap only drops primitives past it, it never overruns. Unset by
+    * default: behaviour is unchanged. */
+   {
+      static int cap_limit_init;
+      static uint32_t cap_limit;
+      if (!cap_limit_init) {
+         const char *e = getenv("PANVK_TESS_CAP");
+         cap_limit = e ? (uint32_t)strtoul(e, NULL, 0) : 0;
+         cap_limit_init = 1;
+      }
+      if (cap_limit)
+         cap = MIN2(cap, MAX2(cap_limit, 64u));
+   }
 
    enum tess_primitive_mode prim;
    enum gl_tess_spacing spacing;
