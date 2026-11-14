@@ -70,6 +70,7 @@ enum panvk_stat {
    PANVK_STAT_NS_SUBMIT,      /* whole vkQueueSubmit on the kbase path */
    PANVK_STAT_NS_SUBMIT_WAIT, /* of which: CPU waits on semaphores/fences before submitting */
    PANVK_STAT_NS_BC_REFRESH,  /* of which: refreshing emulated BC linear images */
+   PANVK_STAT_NS_GPU_BUSY,    /* wall time with a submission outstanding (see below) */
    PANVK_STAT_COUNT,
 };
 
@@ -83,5 +84,15 @@ void panvk_stat_count(enum panvk_stat stat);
  */
 uint64_t panvk_stat_t0(void);
 void panvk_stat_t1(enum panvk_stat stat, uint64_t t0);
+
+/*
+ * GPU-busy estimate: call with the panvk_stat_t0() taken just before a submission was handed to
+ * the kernel, when that submission completes (completions arrive in order). Each submission is
+ * counted busy from the later of its own submit time and the previous completion until its own
+ * completion, so the sum is the wall time with at least one submission outstanding. It is an
+ * upper bound on real GPU activity: time a submission spends waiting on its dependencies counts.
+ * Reported as gpu_busy_pct. Does nothing when submit_ns is 0.
+ */
+void panvk_stat_gpu_done(uint64_t submit_ns);
 
 #endif

@@ -1512,6 +1512,7 @@ panvk_queue_kbase_decode(struct panvk_gpu_queue *queue, const struct vk_queue_su
 /* What a kbase submission still has to do once the GPU is done with it. */
 struct panvk_kbase_csf_done {
    struct panvk_gpu_queue *queue;
+   uint64_t submit_ns; /* PANVK_STATS only, else 0 */
    uint32_t nr_signals;
    uint32_t signals[];
 };
@@ -1523,6 +1524,7 @@ panvk_kbase_csf_done(void *data, bool ok)
    struct panvk_kbase_csf_done *d = data;
    struct panvk_device *dev = to_panvk_device(d->queue->vk.base.device);
 
+   panvk_stat_gpu_done(d->submit_ns);
    if (!ok)
       d->queue->kbase_lost = true;
    if (d->nr_signals)
@@ -1640,6 +1642,7 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
    }
 
    d->queue = queue;
+   d->submit_ns = 0;
    d->nr_signals = vk_submit->signal_count;
    for (uint32_t i = 0; i < vk_submit->signal_count; i++)
       d->signals[i] = vk_sync_as_drm_syncobj(vk_submit->signals[i].sync)->syncobj;
@@ -1647,6 +1650,9 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
    /* Before submitting: the completion may run before the submit even returns. */
    pan_kmod_kbase_sync_submitted(d->signals, d->nr_signals);
    pan_kmod_flush_bo_map_syncs(dev->kmod.dev);
+
+   /* Set before the submit: the completion may run before it returns. */
+   d->submit_ns = panvk_stat_t0();
 
    const uint64_t seq =
       pan_kmod_kbase_csf_submit(queue->kbase_group, calls, nr_calls,

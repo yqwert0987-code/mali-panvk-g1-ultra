@@ -172,13 +172,14 @@ stat_add(enum panvk_stat stat, uint64_t n)
    fprintf(stats_file,
            "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
-           " us_per_draw=%.2f\n",
+           " us_per_draw=%.2f gpu_busy_pct=%.0f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
            d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT] / 1e6 / secs,
            d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs, d[PANVK_STAT_NS_BC_REFRESH] / 1e6 / secs,
-           d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0);
+           d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0,
+           d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
@@ -207,4 +208,23 @@ panvk_stat_t1(enum panvk_stat stat, uint64_t t0)
    if (!t0)
       return;
    stat_add(stat, os_time_get_nano() - t0);
+}
+
+static uint64_t gpu_last_done_ns;
+static pthread_mutex_t gpu_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void
+panvk_stat_gpu_done(uint64_t submit_ns)
+{
+   if (!submit_ns)
+      return;
+
+   const uint64_t now = os_time_get_nano();
+   pthread_mutex_lock(&gpu_lock);
+   const uint64_t start = submit_ns > gpu_last_done_ns ? submit_ns : gpu_last_done_ns;
+   const uint64_t busy = now > start ? now - start : 0;
+   gpu_last_done_ns = now;
+   pthread_mutex_unlock(&gpu_lock);
+
+   stat_add(PANVK_STAT_NS_GPU_BUSY, busy);
 }
