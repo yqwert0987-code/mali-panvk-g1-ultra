@@ -71,6 +71,7 @@ enum panvk_stat {
    PANVK_STAT_NS_SUBMIT_WAIT, /* of which: CPU waits on semaphores/fences before submitting */
    PANVK_STAT_NS_BC_REFRESH,  /* of which: refreshing emulated BC linear images */
    PANVK_STAT_NS_GPU_BUSY,    /* wall time with a submission outstanding (see below) */
+   PANVK_STAT_EMU_BYTES,      /* bytes of buffers allocated for GS/tessellation emulation */
    PANVK_STAT_COUNT,
 };
 

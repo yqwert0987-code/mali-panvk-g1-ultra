@@ -6,8 +6,11 @@
 
 #include <inttypes.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "kmod/kbase_kmod.h"
 #include "util/log.h"
@@ -25,12 +28,36 @@ static struct panvk_gs_diag_rec ring[RING_SIZE];
 static uint64_t next_seq;
 static int hook_installed;
 
+static FILE *stats_file;
+static void stat_add(enum panvk_stat stat, uint64_t n);
+
+/* Logs to Mesa's log and, when PANVK_STATS is set, also to the stats file as a "# " line. The
+ * stats file is opened in append mode, so unlike MESA_LOG_FILE (reopened and truncated by every
+ * process that creates a Vulkan instance, and a launcher starts many) it keeps the dump of a
+ * process that then dies. */
+static void __attribute__((format(printf, 1, 2)))
+diag_logf(const char *fmt, ...)
+{
+   char buf[512];
+   va_list ap;
+
+   va_start(ap, fmt);
+   vsnprintf(buf, sizeof(buf), fmt, ap);
+   va_end(ap);
+
+   mesa_loge("%s", buf);
+   if (stats_file) {
+      fprintf(stats_file, "# %s\n", buf);
+      fflush(stats_file);
+   }
+}
+
 static void
 dump_on_fault(uint64_t sideband, uint32_t status)
 {
    pthread_mutex_lock(&diag_lock);
 
-   mesa_loge("gs-diag: fault status 0x%08x sideband 0x%016" PRIx64 ", %" PRIu64
+   diag_logf("gs-diag: fault status 0x%08x sideband 0x%016" PRIx64 ", %" PRIu64
              " emulated draws recorded",
              status, sideband, next_seq);
 
@@ -40,7 +67,7 @@ dump_on_fault(uint64_t sideband, uint32_t status)
       const int listed = n < LISTED_RECS;
 
       if (listed)
-         mesa_loge("gs-diag: draw #%" PRIu64 " (%" PRIu64 " back) %s topo=%u vpp=%u inst=%u "
+         diag_logf("gs-diag: draw #%" PRIu64 " (%" PRIu64 " back) %s topo=%u vpp=%u inst=%u "
                    "recs=%u invocations=%u out_verts=%u out_indices=%u indirect=%u",
                    r->seq, n, r->kind, r->topology, r->vpp, r->instances, r->records,
                    r->invocations, r->out_verts, r->out_indices, r->indirect);
@@ -55,19 +82,19 @@ dump_on_fault(uint64_t sideband, uint32_t status)
             continue;
 
          if (inside)
-            mesa_loge("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64 "  FAULT INSIDE (+%" PRIu64
+            diag_logf("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64 "  FAULT INSIDE (+%" PRIu64
                       ")",
                       r->buf[i].name, start, r->buf[i].size, sideband - start);
          else if (sideband >= end && near)
-            mesa_loge("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64
+            diag_logf("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64
                       "  FAULT PAST END by %" PRIu64,
                       r->buf[i].name, start, r->buf[i].size, sideband - end);
          else if (sideband < start && near)
-            mesa_loge("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64
+            diag_logf("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64
                       "  FAULT BEFORE START by %" PRIu64,
                       r->buf[i].name, start, r->buf[i].size, start - sideband);
          else
-            mesa_loge("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64, r->buf[i].name, start,
+            diag_logf("gs-diag:   %-10s 0x%012" PRIx64 " size %" PRIu64, r->buf[i].name, start,
                       r->buf[i].size);
       }
    }
@@ -79,20 +106,20 @@ dump_on_fault(uint64_t sideband, uint32_t status)
       const uint32_t npos = r->dump_pos_count < 24 ? r->dump_pos_count : 24;
 
       if (r->dump_idx) {
-         mesa_loge("gs-diag: newest draw out_idx (%u of %u words):", nidx, r->dump_idx_count);
+         diag_logf("gs-diag: newest draw out_idx (%u of %u words):", nidx, r->dump_idx_count);
          for (uint32_t i = 0; i < nidx; i += 12) {
             char line[12 * 12 + 1];
             int len = 0;
             for (uint32_t j = i; j < i + 12 && j < nidx; j++)
                len += snprintf(line + len, sizeof(line) - len, "%x ", r->dump_idx[j]);
-            mesa_loge("gs-diag:   [%3u] %s", i, line);
+            diag_logf("gs-diag:   [%3u] %s", i, line);
          }
       }
 
       if (r->dump_pos) {
-         mesa_loge("gs-diag: newest draw out_pos (%u of %u vertices):", npos, r->dump_pos_count);
+         diag_logf("gs-diag: newest draw out_pos (%u of %u vertices):", npos, r->dump_pos_count);
          for (uint32_t i = 0; i < npos; i++)
-            mesa_loge("gs-diag:   v%-2u %g %g %g %g", i, r->dump_pos[i * 4], r->dump_pos[i * 4 + 1],
+            diag_logf("gs-diag:   v%-2u %g %g %g %g", i, r->dump_pos[i * 4], r->dump_pos[i * 4 + 1],
                       r->dump_pos[i * 4 + 2], r->dump_pos[i * 4 + 3]);
       }
    }
@@ -115,6 +142,11 @@ panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec)
    slot->seq = next_seq++;
 
    pthread_mutex_unlock(&diag_lock);
+
+   uint64_t bytes = 0;
+   for (uint32_t i = 0; i < rec->nbufs; i++)
+      bytes += rec->buf[i].size;
+   stat_add(PANVK_STAT_EMU_BYTES, bytes);
 }
 
 #define STATS_INTERVAL_NS 2000000000ull
@@ -125,7 +157,6 @@ static uint64_t stat_last_ns;
 static uint64_t stat_start_ns;
 /* 0: not looked at yet, 1: off, 2: on. */
 static int stats_mode;
-static FILE *stats_file;
 static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void
@@ -144,6 +175,40 @@ stats_init(void)
       }
    }
    pthread_mutex_unlock(&stats_lock);
+}
+
+/* Resident set size of this process and the system's available memory, in MiB, for the stats
+ * line: a process killed for memory dies without a word in any log of its own. */
+static double
+read_rss_mib(void)
+{
+   unsigned long size = 0, res = 0;
+   FILE *f = fopen("/proc/self/statm", "r");
+   if (!f)
+      return 0.0;
+   if (fscanf(f, "%lu %lu", &size, &res) != 2)
+      res = 0;
+   fclose(f);
+   return (double)res * (double)sysconf(_SC_PAGESIZE) / (1024.0 * 1024.0);
+}
+
+static double
+read_memavail_mib(void)
+{
+   char line[128];
+   double mib = 0.0;
+   FILE *f = fopen("/proc/meminfo", "r");
+   if (!f)
+      return 0.0;
+   while (fgets(line, sizeof(line), f)) {
+      unsigned long kb;
+      if (sscanf(line, "MemAvailable: %lu kB", &kb) == 1) {
+         mib = kb / 1024.0;
+         break;
+      }
+   }
+   fclose(f);
+   return mib;
 }
 
 static void
@@ -172,14 +237,17 @@ stat_add(enum panvk_stat stat, uint64_t n)
    fprintf(stats_file,
            "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
-           " us_per_draw=%.2f gpu_busy_pct=%.0f\n",
+           " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
+           " memavail_mib=%.0f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
            d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT] / 1e6 / secs,
            d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs, d[PANVK_STAT_NS_BC_REFRESH] / 1e6 / secs,
            d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0,
-           d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0);
+           d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0,
+           d[PANVK_STAT_EMU_BYTES] / (1024.0 * 1024.0) / secs, read_rss_mib(),
+           read_memavail_mib());
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
