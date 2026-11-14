@@ -170,6 +170,12 @@ stats_init(void)
       if (stats_file) {
          stat_start_ns = stat_last_ns = os_time_get_nano();
          stats_mode = 2;
+         /* Says which build and settings produced the lines that follow. */
+         const char *cap = os_get_option("PANVK_TESS_CAP");
+         fprintf(stats_file, "# panvk stats, pid %d, built " __DATE__ " " __TIME__
+                             ", PANVK_TESS_CAP=%s\n",
+                 (int)getpid(), cap ? cap : "(unset)");
+         fflush(stats_file);
       } else {
          stats_mode = 1;
       }
