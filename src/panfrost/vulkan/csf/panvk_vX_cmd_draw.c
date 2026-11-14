@@ -4607,7 +4607,7 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
 }
 
 static void
-panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
+panvk_cmd_draw_untimed(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
 {
    const struct panvk_shader_variant *vs =
       get_vs(cmdbuf);
@@ -4706,6 +4706,15 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
       launch_indirect_draw(cmdbuf, &draw);
    else
       launch_draw(cmdbuf, &draw);
+}
+
+/* Times the whole draw for PANVK_STATS; costs one atomic load per draw when it is not set. */
+static void
+panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
+{
+   const uint64_t t0 = panvk_stat_t0();
+   panvk_cmd_draw_untimed(cmdbuf, draw);
+   panvk_stat_t1(PANVK_STAT_NS_DRAW, t0);
 }
 
 VkResult

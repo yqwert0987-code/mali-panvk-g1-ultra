@@ -21,6 +21,7 @@
 
 #include "kmod/pan_kmod.h"
 #include "kmod/kbase_kmod.h"
+#include "panvk_gs_diag.h"
 
 #include "util/bitscan.h"
 #include "util/log.h"
@@ -1571,15 +1572,20 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
 
       /* Signaled by our own earlier submissions: the rings wait for them on the GPU. */
       if (!pan_kmod_kbase_sync_csf_wait_seq(waits, vk_submit->wait_count, queue->kbase_group,
-                                            &wait_seq))
+                                            &wait_seq)) {
+         const uint64_t wait_t0 = panvk_stat_t0();
          dev->vk.sync->wait(dev->vk.sync, waits, vk_submit->wait_count, INT64_MAX,
                             DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL, NULL);
+         panvk_stat_t1(PANVK_STAT_NS_SUBMIT_WAIT, wait_t0);
+      }
    }
 
    /* Linear images of emulated BC formats first, from what the host may have written into them
     * since (panvk_bc_emu.h). Held until the submission has its sequence number. */
+   const uint64_t bc_t0 = panvk_stat_t0();
    struct panvk_cmd_buffer *refresh =
       vk_submit->command_buffer_count ? panvk_per_arch(bc_emu_refresh_begin)(dev) : NULL;
+   panvk_stat_t1(PANVK_STAT_NS_BC_REFRESH, bc_t0);
    const uint32_t nr_cmdbufs = vk_submit->command_buffer_count + (refresh ? 1 : 0);
    struct panvk_cmd_buffer *cmdbufs[nr_cmdbufs ? nr_cmdbufs : 1];
    if (refresh)
@@ -1706,8 +1712,13 @@ panvk_per_arch(gpu_queue_submit)(struct vk_queue *vk_queue, struct vk_queue_subm
    }
 
    struct panvk_gpu_queue *gpu_queue = container_of(vk_queue, struct panvk_gpu_queue, vk);
-   if (gpu_queue->kbase_group)
-      return panvk_queue_submit_kbase(gpu_queue, vk_submit);
+   if (gpu_queue->kbase_group) {
+      const uint64_t t0 = panvk_stat_t0();
+      const VkResult kb_result = panvk_queue_submit_kbase(gpu_queue, vk_submit);
+      panvk_stat_t1(PANVK_STAT_NS_SUBMIT, t0);
+      panvk_stat_count(PANVK_STAT_SUBMIT);
+      return kb_result;
+   }
 
    panvk_queue_submit_init(&submit, vk_queue);
    result = panvk_queue_submit_init_storage(&submit, vk_submit, &stack_storage);

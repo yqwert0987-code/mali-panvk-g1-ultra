@@ -146,10 +146,10 @@ stats_init(void)
    pthread_mutex_unlock(&stats_lock);
 }
 
-void
-panvk_stat_count(enum panvk_stat stat)
+static void
+stat_add(enum panvk_stat stat, uint64_t n)
 {
-   __atomic_fetch_add(&stat_counts[stat], 1, __ATOMIC_RELAXED);
+   __atomic_fetch_add(&stat_counts[stat], n, __ATOMIC_RELAXED);
 
    if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
       stats_init();
@@ -170,12 +170,41 @@ panvk_stat_count(enum panvk_stat stat)
       stat_prev[i] = c;
    }
    fprintf(stats_file,
-           "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f\n",
+           "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
+           " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
+           " us_per_draw=%.2f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
-           d[PANVK_STAT_POLYGON] / secs);
+           d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
+           d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT] / 1e6 / secs,
+           d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs, d[PANVK_STAT_NS_BC_REFRESH] / 1e6 / secs,
+           d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
    pthread_mutex_unlock(&stats_lock);
+}
+
+void
+panvk_stat_count(enum panvk_stat stat)
+{
+   stat_add(stat, 1);
+}
+
+uint64_t
+panvk_stat_t0(void)
+{
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) != 2)
+      return 0;
+   return os_time_get_nano();
+}
+
+void
+panvk_stat_t1(enum panvk_stat stat, uint64_t t0)
+{
+   if (!t0)
+      return;
+   stat_add(stat, os_time_get_nano() - t0);
 }

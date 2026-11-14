@@ -64,9 +64,24 @@ enum panvk_stat {
    PANVK_STAT_GS_APP,
    PANVK_STAT_XFB,
    PANVK_STAT_POLYGON,
+   PANVK_STAT_SUBMIT,
+   /* Cumulative nanoseconds of CPU time, summed over all threads. */
+   PANVK_STAT_NS_DRAW,        /* recording draws (vkCmdDraw*) */
+   PANVK_STAT_NS_SUBMIT,      /* whole vkQueueSubmit on the kbase path */
+   PANVK_STAT_NS_SUBMIT_WAIT, /* of which: CPU waits on semaphores/fences before submitting */
+   PANVK_STAT_NS_BC_REFRESH,  /* of which: refreshing emulated BC linear images */
    PANVK_STAT_COUNT,
 };
 
 void panvk_stat_count(enum panvk_stat stat);
+
+/*
+ * Timing for the same file. panvk_stat_t0() returns 0 (one relaxed atomic load) when PANVK_STATS
+ * is not set, otherwise a timestamp; panvk_stat_t1() adds the time elapsed since t0 to a
+ * PANVK_STAT_NS_* counter and does nothing when t0 is 0. The per-line output reports each as
+ * milliseconds of CPU time per second of wall time, so 1000 means one thread busy throughout.
+ */
+uint64_t panvk_stat_t0(void);
+void panvk_stat_t1(enum panvk_stat stat, uint64_t t0);
 
 #endif
