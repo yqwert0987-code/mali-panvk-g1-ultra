@@ -244,7 +244,7 @@ stat_add(enum panvk_stat stat, uint64_t n)
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
            " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
            " memavail_mib=%.0f privbo_new_mib_s=%.1f privbo_free_mib_s=%.1f vkmem_new_mib_s=%.1f"
-           " vkmem_free_mib_s=%.1f\n",
+           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
@@ -256,7 +256,8 @@ stat_add(enum panvk_stat stat, uint64_t n)
            read_memavail_mib(), d[PANVK_STAT_PRIVBO_NEW] / 1048576.0 / secs,
            d[PANVK_STAT_PRIVBO_FREED] / 1048576.0 / secs,
            d[PANVK_STAT_VKMEM_NEW] / 1048576.0 / secs,
-           d[PANVK_STAT_VKMEM_FREED] / 1048576.0 / secs);
+           d[PANVK_STAT_VKMEM_FREED] / 1048576.0 / secs,
+           d[PANVK_STAT_EMU_PLANNED] / 1048576.0 / secs);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
@@ -267,6 +268,33 @@ void
 panvk_stat_count(enum panvk_stat stat)
 {
    stat_add(stat, 1);
+}
+
+bool
+panvk_gs_diag_plan(const char *kind, uint64_t bytes, uint32_t nr_patches, uint32_t cap,
+                   uint32_t invocations, uint32_t out_verts, uint32_t out_indices)
+{
+   static int limit_init;
+   static uint64_t limit_bytes;
+   static unsigned logged;
+
+   if (!limit_init) {
+      const char *e = os_get_option("PANVK_EMU_MAX_MIB");
+      limit_bytes = e ? strtoull(e, NULL, 0) << 20 : 0;
+      limit_init = 1;
+   }
+
+   stat_add(PANVK_STAT_EMU_PLANNED, bytes);
+
+   const bool skip = limit_bytes && bytes > limit_bytes;
+   if (stats_file && (skip || bytes > (16u << 20)) && logged < 24) {
+      logged++;
+      diag_logf("gs-diag: %s plans %.1f MiB: patches=%u cap=%u gs_invocations=%u out_verts=%u "
+                "out_indices=%u%s",
+                kind, bytes / 1048576.0, nr_patches, cap, invocations, out_verts, out_indices,
+                skip ? " SKIPPED (PANVK_EMU_MAX_MIB)" : "");
+   }
+   return skip;
 }
 
 void

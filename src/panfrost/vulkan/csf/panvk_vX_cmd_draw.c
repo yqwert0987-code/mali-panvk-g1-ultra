@@ -4246,6 +4246,16 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
    const uint32_t heap_off = ALIGN_POT(params_off + sizeof(struct poly_tess_params), 16);
    size = heap_off + sizeof(struct poly_heap);
 
+   {
+      const uint64_t planned =
+         size + (uint64_t)recs * inst * (16 + vs->gs.rec_stride) +
+         (uint64_t)cap * (16 + 4 + tes->gs.rec_stride) +
+         (gs ? (uint64_t)out_verts * (16 + gs->gs.rec_stride) + (uint64_t)out_indices * 4 : 0);
+      if (panvk_gs_diag_plan("tess", planned, nr_patches, cap, gs_invocations, out_verts,
+                             out_indices))
+         return;
+   }
+
    struct pan_ptr blob = panvk_cmd_alloc_dev_mem(cmdbuf, desc, size, 64);
    struct pan_ptr in_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, recs * inst * 16, 64);
    struct pan_ptr in_gen =

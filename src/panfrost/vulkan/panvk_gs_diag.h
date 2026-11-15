@@ -10,6 +10,7 @@
 #ifndef PANVK_GS_DIAG_H
 #define PANVK_GS_DIAG_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define PANVK_GS_DIAG_MAX_BUFS 12
@@ -72,6 +73,7 @@ enum panvk_stat {
    PANVK_STAT_NS_BC_REFRESH,  /* of which: refreshing emulated BC linear images */
    PANVK_STAT_NS_GPU_BUSY,    /* wall time with a submission outstanding (see below) */
    PANVK_STAT_EMU_BYTES,      /* bytes of buffers allocated for GS/tessellation emulation */
+   PANVK_STAT_EMU_PLANNED,    /* bytes a tessellation draw intended to allocate, before allocating */
    PANVK_STAT_PRIVBO_NEW,     /* bytes of driver-internal BOs created (pools, shaders, ...) */
    PANVK_STAT_PRIVBO_FREED,   /* ... and destroyed */
    PANVK_STAT_VKMEM_NEW,      /* bytes from vkAllocateMemory */
@@ -100,5 +102,14 @@ void panvk_stat_t1(enum panvk_stat stat, uint64_t t0);
  * Reported as gpu_busy_pct. Does nothing when submit_ns is 0.
  */
 void panvk_stat_gpu_done(uint64_t submit_ns);
+
+/*
+ * Called by a tessellation draw before it allocates its buffers, with the total it is about to
+ * allocate. Counts it (emu_plan_mib_s), logs the first draws above 16 MiB to the stats file with
+ * the sizes that produced the total, and returns true when PANVK_EMU_MAX_MIB=<n> is set and the
+ * total exceeds it: the caller should then skip the draw instead of allocating. Unset: never true.
+ */
+bool panvk_gs_diag_plan(const char *kind, uint64_t bytes, uint32_t nr_patches, uint32_t cap,
+                        uint32_t invocations, uint32_t out_verts, uint32_t out_indices);
 
 #endif
