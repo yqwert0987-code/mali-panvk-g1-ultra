@@ -74,6 +74,7 @@ enum panvk_stat {
    PANVK_STAT_NS_GPU_BUSY,    /* wall time with a submission outstanding (see below) */
    PANVK_STAT_EMU_BYTES,      /* bytes of buffers allocated for GS/tessellation emulation */
    PANVK_STAT_EMU_PLANNED,    /* bytes a tessellation draw intended to allocate, before allocating */
+   PANVK_STAT_WLS_BYTES,      /* bytes of workgroup-local scratch requested by compute dispatches */
    PANVK_STAT_PRIVBO_NEW,     /* bytes of driver-internal BOs created (pools, shaders, ...) */
    PANVK_STAT_PRIVBO_FREED,   /* ... and destroyed */
    PANVK_STAT_VKMEM_NEW,      /* bytes from vkAllocateMemory */
@@ -111,5 +112,10 @@ void panvk_stat_gpu_done(uint64_t submit_ns);
  */
 bool panvk_gs_diag_plan(const char *kind, uint64_t bytes, uint32_t nr_patches, uint32_t cap,
                         uint32_t invocations, uint32_t out_verts, uint32_t out_indices);
+
+/* Called for each compute dispatch that needs workgroup-local scratch (WLS): counts the bytes
+ * (wls_mib_s) and logs the first few large ones. */
+void panvk_gs_diag_wls(uint64_t bytes, uint32_t wls_size, uint32_t instances, uint32_t core_range,
+                       bool indirect);
 
 #endif

@@ -244,7 +244,7 @@ stat_add(enum panvk_stat stat, uint64_t n)
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
            " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
            " memavail_mib=%.0f privbo_new_mib_s=%.1f privbo_free_mib_s=%.1f vkmem_new_mib_s=%.1f"
-           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f\n",
+           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f wls_mib_s=%.1f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
@@ -257,7 +257,8 @@ stat_add(enum panvk_stat stat, uint64_t n)
            d[PANVK_STAT_PRIVBO_FREED] / 1048576.0 / secs,
            d[PANVK_STAT_VKMEM_NEW] / 1048576.0 / secs,
            d[PANVK_STAT_VKMEM_FREED] / 1048576.0 / secs,
-           d[PANVK_STAT_EMU_PLANNED] / 1048576.0 / secs);
+           d[PANVK_STAT_EMU_PLANNED] / 1048576.0 / secs,
+           d[PANVK_STAT_WLS_BYTES] / 1048576.0 / secs);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
@@ -295,6 +296,21 @@ panvk_gs_diag_plan(const char *kind, uint64_t bytes, uint32_t nr_patches, uint32
                 skip ? " SKIPPED (PANVK_EMU_MAX_MIB)" : "");
    }
    return skip;
+}
+
+void
+panvk_gs_diag_wls(uint64_t bytes, uint32_t wls_size, uint32_t instances, uint32_t core_range,
+                  bool indirect)
+{
+   static unsigned logged;
+
+   stat_add(PANVK_STAT_WLS_BYTES, bytes);
+   if (stats_file && bytes > (8u << 20) && logged < 16) {
+      logged++;
+      diag_logf("gs-diag: dispatch wants %.1f MiB of WLS: wls_size=%u instances=%u core_id_range=%u "
+                "indirect=%d",
+                bytes / 1048576.0, wls_size, instances, core_range, (int)indirect);
+   }
 }
 
 void

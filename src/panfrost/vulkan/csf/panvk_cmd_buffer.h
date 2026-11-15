@@ -565,6 +565,9 @@ struct panvk_cmd_buffer {
       struct panvk_push_constant_state push_constants;
       struct panvk_cs_state cs[PANVK_SUBQUEUE_COUNT];
       struct panvk_tls_state tls;
+      /* PANVK_WLS_REUSE: the largest WLS allocation so far in this command buffer. */
+      uint64_t wls_cache_ptr;
+      uint32_t wls_cache_size;
       bool contains_timestamp_queries;
       bool uses_poly_heap;
 

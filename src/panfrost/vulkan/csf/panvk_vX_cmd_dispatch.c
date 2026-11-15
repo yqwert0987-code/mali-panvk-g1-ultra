@@ -10,6 +10,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
+
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
@@ -20,6 +22,7 @@
 #include "panvk_cmd_push_constant.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
+#include "panvk_gs_diag.h"
 #include "panvk_instr.h"
 #include "panvk_macros.h"
 #include "panvk_meta.h"
@@ -168,10 +171,31 @@ panvk_per_arch(cmd_dispatch_prepare_tls)(
        * instance count) might differ significantly between dispatch commands,
        * rather than track a single maximum size, we might want to consider
        * multiple allocations for different size buckets. */
-      tlsinfo.wls.ptr =
-         panvk_cmd_alloc_dev_mem(cmdbuf, tls, wls_total_size, 4096).gpu;
-      if (!tlsinfo.wls.ptr)
-         return 0;
+      panvk_gs_diag_wls(wls_total_size, tlsinfo.wls.size, tlsinfo.wls.instances,
+                        core_id_range, indirect);
+
+      /* PANVK_WLS_REUSE=1 (opt-in): reuse one allocation for every dispatch in the command
+       * buffer that fits in it, instead of a fresh one per dispatch. Only safe if consecutive
+       * dispatches never run at the same time. */
+      static int reuse_init, reuse;
+      if (!reuse_init) {
+         const char *e = getenv("PANVK_WLS_REUSE");
+         reuse = e && e[0] == '1';
+         reuse_init = 1;
+      }
+
+      if (reuse && cmdbuf->state.wls_cache_ptr && wls_total_size <= cmdbuf->state.wls_cache_size) {
+         tlsinfo.wls.ptr = cmdbuf->state.wls_cache_ptr;
+      } else {
+         tlsinfo.wls.ptr =
+            panvk_cmd_alloc_dev_mem(cmdbuf, tls, wls_total_size, 4096).gpu;
+         if (!tlsinfo.wls.ptr)
+            return 0;
+         if (reuse) {
+            cmdbuf->state.wls_cache_ptr = tlsinfo.wls.ptr;
+            cmdbuf->state.wls_cache_size = wls_total_size;
+         }
+      }
    }
 
    cmdbuf->state.tls.info.tls.size =
