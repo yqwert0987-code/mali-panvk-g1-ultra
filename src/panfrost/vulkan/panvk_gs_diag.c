@@ -155,6 +155,31 @@ panvk_gs_diag_ptr(const char *name, uint64_t value)
    pthread_mutex_unlock(&diag_lock);
 }
 
+bool
+panvk_gs_diag_skip_instances(uint32_t instances, uint32_t records)
+{
+   static int init;
+   static uint32_t limit;
+   static unsigned logged;
+
+   if (!init) {
+      const char *e = os_get_option("PANVK_GS_SKIP_INSTANCES");
+      limit = e ? (uint32_t)strtoul(e, NULL, 0) : 0;
+      init = 1;
+   }
+   if (!limit || instances < limit)
+      return false;
+
+   stat_add(PANVK_STAT_GS_SKIPPED, 1);
+   if (stats_file && logged < 5) {
+      logged++;
+      diag_logf("gs-diag: skipping geometry shader draw: instances=%u records=%u "
+                "(PANVK_GS_SKIP_INSTANCES=%u)",
+                instances, records, limit);
+   }
+   return true;
+}
+
 unsigned
 panvk_gs_diag_next_stage(void)
 {
@@ -285,7 +310,7 @@ stat_add(enum panvk_stat stat, uint64_t n)
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
            " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
            " memavail_mib=%.0f privbo_new_mib_s=%.1f privbo_free_mib_s=%.1f vkmem_new_mib_s=%.1f"
-           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f wls_mib_s=%.1f tls_mib_s=%.1f\n",
+           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f wls_mib_s=%.1f tls_mib_s=%.1f gs_skipped=%.0f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
@@ -300,7 +325,8 @@ stat_add(enum panvk_stat stat, uint64_t n)
            d[PANVK_STAT_VKMEM_FREED] / 1048576.0 / secs,
            d[PANVK_STAT_EMU_PLANNED] / 1048576.0 / secs,
            d[PANVK_STAT_WLS_BYTES] / 1048576.0 / secs,
-           d[PANVK_STAT_TLS_BYTES] / 1048576.0 / secs);
+           d[PANVK_STAT_TLS_BYTES] / 1048576.0 / secs,
+           d[PANVK_STAT_GS_SKIPPED] / secs);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 

@@ -66,6 +66,11 @@ panvk_gs_diag_add(struct panvk_gs_diag_rec *rec, const char *name, uint64_t addr
 void panvk_gs_diag_ptr(const char *name, uint64_t value);
 unsigned panvk_gs_diag_next_stage(void);
 
+/* PANVK_GS_SKIP_INSTANCES=<n>: true for an application geometry shader draw with n or more
+ * instances, which the caller then drops (counted as gs_skipped, the first few logged). Unset:
+ * always false. */
+bool panvk_gs_diag_skip_instances(uint32_t instances, uint32_t records);
+
 /* Stores a copy of rec in the ring and installs the fault hook on first use. */
 void panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec);
 
@@ -91,6 +96,7 @@ enum panvk_stat {
    PANVK_STAT_EMU_PLANNED,    /* bytes a tessellation draw intended to allocate, before allocating */
    PANVK_STAT_WLS_BYTES,      /* bytes of workgroup-local scratch requested by compute dispatches */
    PANVK_STAT_TLS_BYTES,      /* bytes of thread stack (TLS) allocated per command buffer */
+   PANVK_STAT_GS_SKIPPED,     /* GS draws dropped by PANVK_GS_SKIP_INSTANCES */
    PANVK_STAT_PRIVBO_NEW,     /* bytes of driver-internal BOs created (pools, shaders, ...) */
    PANVK_STAT_PRIVBO_FREED,   /* ... and destroyed */
    PANVK_STAT_VKMEM_NEW,      /* bytes from vkAllocateMemory */
