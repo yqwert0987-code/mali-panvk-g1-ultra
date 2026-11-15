@@ -45,6 +45,14 @@ for tool in meson ninja python3 pkg-config glslangValidator; do
    fi
 done
 
+# USE_CCACHE=1 routes every compile through ccache, so a rebuild after a small change only compiles
+# the files that changed (CI keeps the cache between runs).
+CCACHE_ARGS=
+if [ "${USE_CCACHE:-0}" = 1 ] && command -v ccache >/dev/null 2>&1; then
+   CCACHE_ARGS="'ccache', "
+   export CC="ccache ${CC:-cc}" CXX="ccache ${CXX:-c++}"
+fi
+
 # --- stage 1: host tools ----------------------------------------------------------------------
 HOSTB=build-host
 if [ ! -f "$HOSTB/build.ninja" ]; then
@@ -81,8 +89,8 @@ fi
 
 cat > "$BUILD/cross.ini" <<EOF
 [binaries]
-c = '$BIN/aarch64-linux-android31-clang'
-cpp = '$BIN/aarch64-linux-android31-clang++'
+c = [${CCACHE_ARGS}'$BIN/aarch64-linux-android31-clang']
+cpp = [${CCACHE_ARGS}'$BIN/aarch64-linux-android31-clang++']
 ar = '$BIN/llvm-ar'
 strip = '$BIN/llvm-strip'
 pkg-config = 'pkg-config'

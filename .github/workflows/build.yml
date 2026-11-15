@@ -10,6 +10,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            android-ndk-r29-linux.zip
+          key: build-cache-${{ github.run_id }}
+          restore-keys: build-cache-
+
       - name: Install LLVM 21 (apt.llvm.org)
         run: |
           wget -q https://apt.llvm.org/llvm.sh
@@ -19,7 +28,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake glslang-tools pkg-config unzip git \
+          sudo apt-get install -y ninja-build cmake glslang-tools pkg-config unzip git ccache \
             llvm-21-dev libclang-21-dev clang-21 libclc-21-dev
           # Ubuntu 24.04 ships Meson 1.3, the build needs 1.4.0 or newer
           pip install --break-system-packages meson mako packaging pyyaml
@@ -43,12 +52,21 @@ jobs:
 
       - name: Download Android NDK r29
         run: |
-          wget -q https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          [ -f android-ndk-r29-linux.zip ] || \
+            wget -q https://dl.google.com/android/repository/android-ndk-r29-linux.zip
           unzip -q android-ndk-r29-linux.zip
           echo "NDK_DIR=$PWD/android-ndk-r29" >> "$GITHUB_ENV"
 
       - name: Build
-        run: ./build.sh "$NDK_DIR"
+        env:
+          USE_CCACHE: "1"
+          CCACHE_MAXSIZE: 3G
+          CCACHE_COMPILERCHECK: content
+          CCACHE_BASEDIR: ${{ github.workspace }}
+        run: |
+          mkdir -p ~/.cache/ccache
+          ./build.sh "$NDK_DIR"
+          ccache -s
 
       - name: Upload driver
         uses: actions/upload-artifact@v4
