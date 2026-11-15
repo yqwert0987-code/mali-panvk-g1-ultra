@@ -238,8 +238,14 @@ stats_init(void)
          stats_mode = 2;
          /* Says which settings produced the lines that follow. */
          const char *cap = os_get_option("PANVK_TESS_CAP");
-         fprintf(stats_file, "# panvk stats, pid %d, PANVK_TESS_CAP=%s\n", (int)getpid(),
-                 cap ? cap : "(unset)");
+         const char *share = os_get_option("PANVK_TLS_SHARE");
+         const char *skip = os_get_option("PANVK_GS_SKIP_INSTANCES");
+         /* rev 7: thread stack shared by default, fault dump lists pointers. */
+         fprintf(stats_file,
+                 "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
+                 "PANVK_GS_SKIP_INSTANCES=%s\n",
+                 (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
+                 skip ? skip : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;

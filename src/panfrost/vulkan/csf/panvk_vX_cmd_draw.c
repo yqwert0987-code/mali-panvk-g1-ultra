@@ -3853,6 +3853,9 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
    if (!out_verts || !out_indices)
       return;
 
+   if (mode == GS_EMULATION_APP && !indirect && panvk_gs_diag_skip_instances(inst, recs))
+      return;
+
    struct pan_ptr in_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, recs * inst * 16, 64);
    struct pan_ptr in_gen =
       vs->gs.rec_stride ? panvk_cmd_alloc_dev_mem(cmdbuf, desc, recs * inst * vs->gs.rec_stride, 64)
