@@ -17,6 +17,7 @@
 #include "panvk_buffer.h"
 #include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
+#include "panvk_gs_diag.h"
 #include "panvk_cmd_desc_state.h"
 #include "panvk_cmd_pool.h"
 #include "panvk_cmd_push_constant.h"
@@ -55,6 +56,8 @@ emit_tls(struct panvk_cmd_buffer *cmdbuf)
          pan_query_thread_tls_alloc(&phys_dev->kmod.dev->props);
       unsigned size = pan_get_total_stack_size(cmdbuf->state.tls.info.tls.size,
                                                thread_tls_alloc, core_id_range);
+
+      panvk_gs_diag_tls(size, cmdbuf->state.tls.info.tls.size, thread_tls_alloc, core_id_range);
 
       cmdbuf->state.tls.info.tls.ptr =
          panvk_cmd_alloc_dev_mem(cmdbuf, tls, size, 4096).gpu;

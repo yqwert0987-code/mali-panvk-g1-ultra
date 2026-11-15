@@ -75,6 +75,7 @@ enum panvk_stat {
    PANVK_STAT_EMU_BYTES,      /* bytes of buffers allocated for GS/tessellation emulation */
    PANVK_STAT_EMU_PLANNED,    /* bytes a tessellation draw intended to allocate, before allocating */
    PANVK_STAT_WLS_BYTES,      /* bytes of workgroup-local scratch requested by compute dispatches */
+   PANVK_STAT_TLS_BYTES,      /* bytes of thread stack (TLS) allocated per command buffer */
    PANVK_STAT_PRIVBO_NEW,     /* bytes of driver-internal BOs created (pools, shaders, ...) */
    PANVK_STAT_PRIVBO_FREED,   /* ... and destroyed */
    PANVK_STAT_VKMEM_NEW,      /* bytes from vkAllocateMemory */
@@ -117,5 +118,10 @@ bool panvk_gs_diag_plan(const char *kind, uint64_t bytes, uint32_t nr_patches, u
  * (wls_mib_s) and logs the first few large ones. */
 void panvk_gs_diag_wls(uint64_t bytes, uint32_t wls_size, uint32_t instances, uint32_t core_range,
                        bool indirect);
+
+/* Called when a command buffer allocates its thread stack: counts the bytes (tls_mib_s) and logs
+ * the first few. */
+void panvk_gs_diag_tls(uint64_t bytes, uint32_t tls_size, uint32_t threads_per_core,
+                       uint32_t core_range);
 
 #endif
