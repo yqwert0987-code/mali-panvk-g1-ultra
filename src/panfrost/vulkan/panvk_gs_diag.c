@@ -55,13 +55,15 @@ diag_logf(const char *fmt, ...)
 }
 
 static void
-dump_on_fault(uint64_t sideband, uint32_t status)
+dump_on_fault(uint64_t sideband, uint32_t status, uint32_t kind, uint32_t queue)
 {
+   static const char *const kinds[] = {"group fault", "queue fault", "progress timeout",
+                                       "tiler heap out of memory"};
    pthread_mutex_lock(&diag_lock);
 
-   diag_logf("gs-diag: fault status 0x%08x sideband 0x%016" PRIx64 ", %" PRIu64
+   diag_logf("gs-diag: %s (type %u, queue %u), status 0x%08x sideband 0x%016" PRIx64 ", %" PRIu64
              " emulated draws recorded",
-             status, sideband, next_seq);
+             kind < 4 ? kinds[kind] : "unknown", kind, queue, status, sideband, next_seq);
 
    const uint64_t total = next_seq < RING_SIZE ? next_seq : RING_SIZE;
    for (uint64_t n = 0; n < total; n++) {

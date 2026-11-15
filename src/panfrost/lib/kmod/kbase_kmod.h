@@ -197,6 +197,8 @@ bool pan_kmod_kbase_csf_group_faulted(const struct pan_kmod_kbase_csf_group *gro
 /* Optional: called from the fault notification thread for every queue group fault, after the
  * kernel module has logged it, with the fault's sideband word and status. Used by the Vulkan
  * driver to explain faults in its geometry shader emulation. */
-extern void (*pan_kmod_kbase_fault_hook)(uint64_t sideband, uint32_t status);
+/* kind: 0 group fault, 1 queue fault, 2 progress timeout, 3 tiler heap out of memory. */
+extern void (*pan_kmod_kbase_fault_hook)(uint64_t sideband, uint32_t status, uint32_t kind,
+                                         uint32_t queue);
 
 #endif /* KBASE_KMOD_H */

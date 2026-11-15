@@ -49,7 +49,8 @@
 #include "util/bitscan.h"
 #include "util/list.h"
 
-void (*pan_kmod_kbase_fault_hook)(uint64_t sideband, uint32_t status);
+void (*pan_kmod_kbase_fault_hook)(uint64_t sideband, uint32_t status, uint32_t kind,
+                                  uint32_t queue);
 
 extern const struct pan_kmod_ops kbase_kmod_ops;
 
@@ -2458,7 +2459,7 @@ kbase_csf_thread(void *arg)
                       handle, kind < ARRAY_SIZE(kinds) ? kinds[kind] : "unknown", kind, status,
                       status & 0xff, sideband, kind == 1 ? notes[o + 36] : 0);
             if (pan_kmod_kbase_fault_hook)
-               pan_kmod_kbase_fault_hook(sideband, status);
+               pan_kmod_kbase_fault_hook(sideband, status, kind, kind == 1 ? notes[o + 36] : 0);
             pthread_mutex_lock(&c->lock);
             list_for_each_entry(struct pan_kmod_kbase_csf_group, g, &c->groups, link) {
                if (g->handle == handle)

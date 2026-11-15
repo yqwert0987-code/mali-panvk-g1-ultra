@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
 #include <sys/stat.h>
 
 #include "util/detect_os.h"
@@ -511,6 +512,13 @@ panvk_physical_device_init(struct panvk_physical_device *device,
       device->csf.tiler.chunk_size = 2 * 1024 * 1024;
       device->csf.tiler.initial_chunks = 5;
       device->csf.tiler.max_chunks = 64;
+      /* PANVK_TILER_MAX_CHUNKS=<n> (opt-in): a bigger tiler heap, n chunks of 2 MiB. */
+      {
+         const char *e = getenv("PANVK_TILER_MAX_CHUNKS");
+         const unsigned long n = e ? strtoul(e, NULL, 0) : 0;
+         if (n >= 64 && n <= 4096)
+            device->csf.tiler.max_chunks = n;
+      }
    }
 
    if (arch != 10)
