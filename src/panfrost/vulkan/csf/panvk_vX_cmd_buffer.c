@@ -10,6 +10,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
+
 #include "drm-uapi/panthor_drm.h"
 
 #include "genxml/gen_macros.h"
@@ -43,6 +45,40 @@
 #include "vk_format.h"
 #include "vk_synchronization.h"
 
+/* The address of a device-wide thread-stack block of at least size bytes, or 0. Thread stacks are
+ * addressed by hardware core and thread slot, so jobs running at the same time, from this or any
+ * other command buffer, already use different parts of the block, as they do within one command
+ * buffer today. */
+static uint64_t
+shared_tls_get(struct panvk_device *dev, uint64_t size)
+{
+   uint64_t addr = 0;
+
+   simple_mtx_lock(&dev->shared_tls.lock);
+   if (!dev->shared_tls.bo || dev->shared_tls.size < size) {
+      uint64_t new_size = MAX2(size, dev->shared_tls.size + dev->shared_tls.size / 2);
+      new_size = ALIGN_POT(new_size, 1ull << 20);
+      struct panvk_priv_bo *bo = NULL;
+
+      if (panvk_priv_bo_create(dev, new_size,
+                               panvk_device_adjust_bo_flags(dev, PAN_KMOD_BO_FLAG_NO_MMAP),
+                               VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &bo) == VK_SUCCESS) {
+         if (dev->shared_tls.bo) {
+            if (dev->shared_tls.num_retired < ARRAY_SIZE(dev->shared_tls.retired))
+               dev->shared_tls.retired[dev->shared_tls.num_retired++] = dev->shared_tls.bo;
+            /* else: leaked, a running submission may still use it. */
+         }
+         dev->shared_tls.bo = bo;
+         dev->shared_tls.size = new_size;
+      }
+   }
+   if (dev->shared_tls.bo && dev->shared_tls.size >= size)
+      addr = dev->shared_tls.bo->addr.dev;
+   simple_mtx_unlock(&dev->shared_tls.lock);
+
+   return addr;
+}
+
 static void
 emit_tls(struct panvk_cmd_buffer *cmdbuf)
 {
@@ -59,8 +95,17 @@ emit_tls(struct panvk_cmd_buffer *cmdbuf)
 
       panvk_gs_diag_tls(size, cmdbuf->state.tls.info.tls.size, thread_tls_alloc, core_id_range);
 
-      cmdbuf->state.tls.info.tls.ptr =
-         panvk_cmd_alloc_dev_mem(cmdbuf, tls, size, 4096).gpu;
+      static int share_init, share;
+      if (!share_init) {
+         const char *e = getenv("PANVK_TLS_SHARE");
+         share = e && e[0] == '1';
+         share_init = 1;
+      }
+
+      cmdbuf->state.tls.info.tls.ptr = share ? shared_tls_get(dev, size) : 0;
+      if (!cmdbuf->state.tls.info.tls.ptr)
+         cmdbuf->state.tls.info.tls.ptr =
+            panvk_cmd_alloc_dev_mem(cmdbuf, tls, size, 4096).gpu;
    }
 
    assert(!cmdbuf->state.tls.info.wls.size);

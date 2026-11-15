@@ -69,6 +69,17 @@ struct panvk_device {
       struct pan_kmod_allocator allocator;
    } kmod;
 
+   /* PANVK_TLS_SHARE=1 (CSF): one thread-stack block for every command buffer, grown when a
+    * larger one is needed, instead of a block per command buffer. Replaced blocks stay in
+    * retired[] until the device is destroyed, as a submission may still use them. */
+   struct {
+      simple_mtx_t lock;
+      struct panvk_priv_bo *bo;
+      uint64_t size;
+      struct panvk_priv_bo *retired[16];
+      unsigned num_retired;
+   } shared_tls;
+
    /* JM tiler heaps. kbase gets two, and batches take turns (tiler_heap_next): a vertex/tiler
     * job may then run while the previous batch's fragment job still reads the other one. The DRM
     * path has [0] only. */

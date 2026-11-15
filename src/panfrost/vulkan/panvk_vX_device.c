@@ -718,6 +718,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 #endif
 
    simple_mtx_init(&device->as.lock, mtx_plain);
+   simple_mtx_init(&device->shared_tls.lock, mtx_plain);
    simple_mtx_init(&device->polygon_gs.lock, mtx_plain);
    util_dynarray_init(&device->xfb_gs, NULL);
 
@@ -900,6 +901,10 @@ err_free_priv_bos:
    vk_free(&device->vk.alloc, device->dump_region_size);
    pan_kmod_vm_destroy(device->kmod.vm);
    cleanup_va_heaps(device);
+   panvk_priv_bo_unref(device->shared_tls.bo);
+   for (unsigned i = 0; i < device->shared_tls.num_retired; i++)
+      panvk_priv_bo_unref(device->shared_tls.retired[i]);
+   simple_mtx_destroy(&device->shared_tls.lock);
    simple_mtx_destroy(&device->as.lock);
    simple_mtx_destroy(&device->polygon_gs.lock);
 
