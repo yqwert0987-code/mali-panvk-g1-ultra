@@ -124,6 +124,23 @@ tess_factors(constant struct poly_tess_params *p, uint patch)
 }
 
 /*
+ * Lower the first n tessellation levels of a patch to p->max_level, when that is set. A level
+ * that is not above the limit, including NaN (which culls the patch), is left as it is.
+ */
+static inline void
+tess_clamp_levels(constant struct poly_tess_params *p, global float *factors, uint n)
+{
+   float limit = (float)p->max_level;
+   if (p->max_level == 0)
+      return;
+
+   for (uint i = 0; i < n; i++) {
+      if (factors[i] > limit)
+         factors[i] = limit;
+   }
+}
+
+/*
  * Generate an indexed draw for a patch with the computed number of indices.
  * This allocates heap memory for the index buffer, returning the allocated
  * memory.
@@ -731,6 +748,7 @@ poly_tess_isoline_process(constant struct poly_tess_params *p, uint32_t patch,
    TESS_FACTOR_CONTEXT lineDetailTessFactorCtx;
 
    global float *factors = tess_factors(p, patch);
+   tess_clamp_levels(p, factors, 2);
    float TessFactor_V_LineDensity = factors[0];
    float TessFactor_U_LineDetail = factors[1];
 
@@ -826,6 +844,7 @@ poly_tess_tri_process(constant struct poly_tess_params *p, uint32_t patch,
    enum poly_tess_partitioning partitioning = p->partitioning;
 
    global float *factors = tess_factors(p, patch);
+   tess_clamp_levels(p, factors, 5);
    float tessFactor_Ueq0 = factors[0];
    float tessFactor_Veq0 = factors[1];
    float tessFactor_Weq0 = factors[2];
@@ -1151,6 +1170,7 @@ poly_tess_quad_process(constant struct poly_tess_params *p, uint32_t patch,
 {
    enum poly_tess_partitioning partitioning = p->partitioning;
    global float *factors = tess_factors(p, patch);
+   tess_clamp_levels(p, factors, 6);
 
    float tessFactor_Ueq0 = factors[0];
    float tessFactor_Veq0 = factors[1];

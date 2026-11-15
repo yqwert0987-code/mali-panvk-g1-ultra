@@ -4233,11 +4233,25 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
    if (!nr_patches || !recs || (uint64_t)nr_patches * tcs->gs.tcs_output_stride > (64u << 20))
       return;
 
+   /* PANVK_TESS_MAX_LEVEL=<1..64>: opt-in lower bound on the tessellation levels (the
+    * tessellator lowers any higher level to it), for a coarser mesh with far fewer vertices
+    * and triangles; unset keeps the levels as they are. */
+   static int level_init;
+   static uint32_t max_level;
+   if (!level_init) {
+      const char *e = getenv("PANVK_TESS_MAX_LEVEL");
+      unsigned long v = e ? strtoul(e, NULL, 0) : 0;
+      max_level = (v >= 1 && v <= 64) ? (uint32_t)v : 0;
+      level_init = 1;
+   }
+
    /* 64 is maxTessellationGenerationLevel, where a quad domain is 64x64 quads of two
     * triangles. */
+   const uint32_t worst_level = max_level ? MIN2(max_level + 2, 64u) : 64;
    uint32_t cap =
       indirect ? PANVK_TESS_MAX_INDICES
-               : MIN2((uint64_t)nr_patches * 64 * 64 * 6, PANVK_TESS_MAX_INDICES);
+               : MIN2((uint64_t)nr_patches * worst_level * worst_level * 6,
+                      PANVK_TESS_MAX_INDICES);
 
    /* PANVK_TESS_CAP=<indices>: opt-in upper bound on the indices one tessellated draw may
     * produce, to shrink the worst-case buffers allocated below (they are sized for tessellation
@@ -4396,6 +4410,7 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
 
    struct poly_tess_params *p = (struct poly_tess_params *)((uint8_t *)blob.cpu + params_off);
    *p = (struct poly_tess_params){
+      .max_level = max_level,
       .heap = blob.gpu + heap_off,
       .patch_coord_buffer = dev->tess_heap->addr.dev,
       .coord_allocs = blob.gpu + coord_off,

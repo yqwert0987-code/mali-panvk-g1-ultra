@@ -100,6 +100,10 @@ struct poly_tess_params {
     * dynamically in the TES.
     */
    uint32_t ccw;
+
+   /* If non-zero, tessellation levels above this are lowered to it before tessellating: a
+    * coarser mesh with far fewer vertices and triangles. Zero leaves the levels alone. */
+   uint32_t max_level;
 } PACKED;
-static_assert(sizeof(struct poly_tess_params) == 34 * 4,
-              "struct poly_tess_params must be 34 words");
+static_assert(sizeof(struct poly_tess_params) == 35 * 4,
+              "struct poly_tess_params must be 35 words");
