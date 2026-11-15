@@ -71,6 +71,11 @@ unsigned panvk_gs_diag_next_stage(void);
  * always false. */
 bool panvk_gs_diag_skip_instances(uint32_t instances, uint32_t records);
 
+/* PANVK_GS_NORAST_INSTANCES=<n>: a bisection aid. True for an application geometry shader draw
+ * with n or more instances; the caller then runs the vertex and geometry compute jobs but skips
+ * the rasterization pass. If a GPU fault goes away, it was in the rasterization pass. */
+bool panvk_gs_diag_norast_instances(uint32_t instances);
+
 /* Stores a copy of rec in the ring and installs the fault hook on first use. */
 void panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec);
 

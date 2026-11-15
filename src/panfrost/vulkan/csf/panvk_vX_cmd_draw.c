@@ -4081,6 +4081,9 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
       emit_xfb_jobs(cmdbuf, gs, out_idx.gpu, 0);
    vt_save_regs(b, saved.gpu, true);
 
+   if (mode == GS_EMULATION_APP && panvk_gs_diag_norast_instances(inst))
+      return;
+
    /* The rasterization pass: the emulation's vertices through the rasterization variant. */
    cmdbuf->state.gfx.sysvals.gs_io.pos = out_pos.gpu;
    cmdbuf->state.gfx.sysvals.gs_io.general = out_gen.gpu;

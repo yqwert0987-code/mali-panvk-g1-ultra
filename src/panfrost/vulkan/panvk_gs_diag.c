@@ -182,6 +182,30 @@ panvk_gs_diag_skip_instances(uint32_t instances, uint32_t records)
    return true;
 }
 
+bool
+panvk_gs_diag_norast_instances(uint32_t instances)
+{
+   static int init;
+   static uint32_t limit;
+   static unsigned logged;
+
+   if (!init) {
+      const char *e = os_get_option("PANVK_GS_NORAST_INSTANCES");
+      limit = e ? (uint32_t)strtoul(e, NULL, 0) : 0;
+      init = 1;
+   }
+   if (!limit || instances < limit)
+      return false;
+
+   if (stats_file && logged < 5) {
+      logged++;
+      diag_logf("gs-diag: geometry shader draw runs its compute jobs only: instances=%u "
+                "(PANVK_GS_NORAST_INSTANCES=%u)",
+                instances, limit);
+   }
+   return true;
+}
+
 unsigned
 panvk_gs_diag_next_stage(void)
 {
@@ -242,12 +266,13 @@ stats_init(void)
          const char *cap = os_get_option("PANVK_TESS_CAP");
          const char *share = os_get_option("PANVK_TLS_SHARE");
          const char *skip = os_get_option("PANVK_GS_SKIP_INSTANCES");
+         const char *norast = os_get_option("PANVK_GS_NORAST_INSTANCES");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
-                 skip ? skip : "(unset)");
+                 skip ? skip : "(unset)", norast ? norast : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;
