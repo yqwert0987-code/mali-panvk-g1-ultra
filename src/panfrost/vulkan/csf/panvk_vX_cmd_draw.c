@@ -12,6 +12,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "genxml/gen_macros.h"
 
@@ -3772,6 +3773,27 @@ enum gs_emulation {
  * is its place against the count buffer). Its size is only known on the GPU, so the emulation is
  * sized for PANVK_GS_INDIRECT_MAX_PRIMS input primitives and panlib_gs_indirect_setup cuts the
  * draw to that. */
+/* Records every pointer field of a job's push block on the newest diagnostic record, for the
+ * fault dump (panvk_gs_diag.h). */
+static void
+panvk_gs_diag_push(const struct panvk_gs_push *p)
+{
+   const unsigned stage = panvk_gs_diag_next_stage();
+   char n[24];
+#define DIAG_PTR(f)                                                                               \
+   do {                                                                                           \
+      snprintf(n, sizeof(n), "s%u.%s", stage, #f);                                                \
+      panvk_gs_diag_ptr(n, p->f);                                                                 \
+   } while (0)
+   DIAG_PTR(in_pos); DIAG_PTR(in_general); DIAG_PTR(out_pos); DIAG_PTR(out_general);
+   DIAG_PTR(out_index); DIAG_PTR(in_offsets); DIAG_PTR(out_offsets); DIAG_PTR(index_buf);
+   DIAG_PTR(indirect_cmd); DIAG_PTR(in_pos_desc); DIAG_PTR(in_general_desc);
+   DIAG_PTR(vertex_dcd); DIAG_PTR(index_min); DIAG_PTR(tiler_index_count);
+   DIAG_PTR(xfb_counts); DIAG_PTR(xfb_staging); DIAG_PTR(viewports); DIAG_PTR(tess_params);
+   DIAG_PTR(num_prims_addr); DIAG_PTR(xfb_stream_index);
+#undef DIAG_PTR
+}
+
 static void
 gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
         enum gs_emulation mode, uint32_t index)
@@ -4029,6 +4051,9 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
    struct pan_ptr gs_pu;
    if (panvk_per_arch(cmd_prepare_gs_push_uniforms)(cmdbuf, gs, &sysvals, &gs_pu) != VK_SUCCESS)
       return;
+   panvk_gs_diag_push(&sysvals.gs);
+   panvk_gs_diag_ptr("gs_res_table", gs_desc.res_table);
+   panvk_gs_diag_ptr("gs_fau", gs_pu.gpu);
 
 #if PAN_ARCH >= 12
    const uint64_t vs_spd = panvk_priv_mem_dev_addr(vs->spds.all_points);
@@ -4128,6 +4153,9 @@ emu_prepare(struct panvk_cmd_buffer *cmdbuf, const struct panvk_shader *shader,
       return false;
    *res_table = sd.res_table;
    *fau = pu.gpu;
+   panvk_gs_diag_push(&sysvals->gs);
+   panvk_gs_diag_ptr("res_table", sd.res_table);
+   panvk_gs_diag_ptr("fau", pu.gpu);
    return true;
 }
 

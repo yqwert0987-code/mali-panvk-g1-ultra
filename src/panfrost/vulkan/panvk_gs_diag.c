@@ -24,6 +24,8 @@
 #define NEAR_BYTES (1u << 20)
 
 static pthread_mutex_t diag_lock = PTHREAD_MUTEX_INITIALIZER;
+/* The sequence number this thread's last committed record got. */
+static __thread uint64_t last_seq = ~0ull;
 static struct panvk_gs_diag_rec ring[RING_SIZE];
 static uint64_t next_seq;
 static int hook_installed;
@@ -99,6 +101,19 @@ dump_on_fault(uint64_t sideband, uint32_t status)
       }
    }
 
+   /* Pointer parameters that were 0, per listed draw. Many are legitimately 0 (an index buffer
+    * on a non-indexed draw); the one a job dereferenced anywhere is not. */
+   for (uint64_t n = 0; n < (total < LISTED_RECS ? total : LISTED_RECS); n++) {
+      const struct panvk_gs_diag_rec *r = &ring[(next_seq - 1 - n) % RING_SIZE];
+      char line[400];
+      int len = 0;
+      for (uint32_t i = 0; i < r->nptrs && len < (int)sizeof(line) - 30; i++)
+         if (!r->ptr[i].value)
+            len += snprintf(line + len, sizeof(line) - len, "%s ", r->ptr[i].name);
+      diag_logf("gs-diag: draw #%" PRIu64 " (%" PRIu64 " back): %u pointers, zero: %s", r->seq, n,
+                r->nptrs, len ? line : "(none)");
+   }
+
    /* The newest draw's index and position buffers, as the CPU sees them. */
    if (total) {
       const struct panvk_gs_diag_rec *r = &ring[(next_seq - 1) % RING_SIZE];
@@ -128,6 +143,31 @@ dump_on_fault(uint64_t sideband, uint32_t status)
 }
 
 void
+panvk_gs_diag_ptr(const char *name, uint64_t value)
+{
+   pthread_mutex_lock(&diag_lock);
+   struct panvk_gs_diag_rec *r = &ring[last_seq % RING_SIZE];
+   if (last_seq != ~0ull && r->seq == last_seq && r->nptrs < PANVK_GS_DIAG_MAX_PTRS) {
+      snprintf(r->ptr[r->nptrs].name, sizeof(r->ptr[0].name), "%s", name);
+      r->ptr[r->nptrs].value = value;
+      r->nptrs++;
+   }
+   pthread_mutex_unlock(&diag_lock);
+}
+
+unsigned
+panvk_gs_diag_next_stage(void)
+{
+   unsigned stage = 0;
+   pthread_mutex_lock(&diag_lock);
+   struct panvk_gs_diag_rec *r = &ring[last_seq % RING_SIZE];
+   if (last_seq != ~0ull && r->seq == last_seq)
+      stage = r->nstages++;
+   pthread_mutex_unlock(&diag_lock);
+   return stage;
+}
+
+void
 panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec)
 {
    pthread_mutex_lock(&diag_lock);
@@ -140,6 +180,7 @@ panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec)
    struct panvk_gs_diag_rec *slot = &ring[next_seq % RING_SIZE];
    *slot = *rec;
    slot->seq = next_seq++;
+   last_seq = slot->seq;
 
    pthread_mutex_unlock(&diag_lock);
 

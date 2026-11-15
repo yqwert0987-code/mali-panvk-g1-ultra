@@ -14,6 +14,8 @@
 #include <stdint.h>
 
 #define PANVK_GS_DIAG_MAX_BUFS 12
+#define PANVK_GS_DIAG_MAX_PTRS 96
+
 
 struct panvk_gs_diag_rec {
    const char *kind;
@@ -38,6 +40,14 @@ struct panvk_gs_diag_rec {
       uint64_t addr;
       uint64_t size;
    } buf[PANVK_GS_DIAG_MAX_BUFS];
+   /* Pointer parameters handed to the draw's emulation jobs (panvk_gs_diag_ptr/_push). A GPU
+    * fault at address 0 means one of them was null when a job needed it. */
+   uint32_t nptrs;
+   uint32_t nstages;
+   struct {
+      char name[24];
+      uint64_t value;
+   } ptr[PANVK_GS_DIAG_MAX_PTRS];
 };
 
 static inline void
@@ -50,6 +60,11 @@ panvk_gs_diag_add(struct panvk_gs_diag_rec *rec, const char *name, uint64_t addr
    rec->buf[rec->nbufs].size = size;
    rec->nbufs++;
 }
+
+/* Records one pointer parameter on the record this thread committed last (callers name push-block
+ * fields s<N>.<field>, N from panvk_gs_diag_next_stage()). */
+void panvk_gs_diag_ptr(const char *name, uint64_t value);
+unsigned panvk_gs_diag_next_stage(void);
 
 /* Stores a copy of rec in the ring and installs the fault hook on first use. */
 void panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec);

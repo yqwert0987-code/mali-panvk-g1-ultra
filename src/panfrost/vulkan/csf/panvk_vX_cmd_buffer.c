@@ -97,8 +97,9 @@ emit_tls(struct panvk_cmd_buffer *cmdbuf)
 
       static int share_init, share;
       if (!share_init) {
+         /* On by default; PANVK_TLS_SHARE=0 goes back to one block per command buffer. */
          const char *e = getenv("PANVK_TLS_SHARE");
-         share = e && e[0] == '1';
+         share = !(e && e[0] == '0');
          share_init = 1;
       }
 
