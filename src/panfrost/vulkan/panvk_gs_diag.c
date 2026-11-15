@@ -292,12 +292,14 @@ stats_init(void)
          const char *skip = os_get_option("PANVK_GS_SKIP_INSTANCES");
          const char *norast = os_get_option("PANVK_GS_NORAST_INSTANCES");
          const char *vsonly = os_get_option("PANVK_GS_VS_ONLY_INSTANCES");
+         const char *chunks = os_get_option("PANVK_TILER_MAX_CHUNKS");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
-                 skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)");
+                 skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)",
+                 chunks ? chunks : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;
