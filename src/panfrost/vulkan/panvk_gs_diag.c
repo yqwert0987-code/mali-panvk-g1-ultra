@@ -500,3 +500,17 @@ panvk_stat_gpu_done(uint64_t submit_ns)
 
    stat_add(PANVK_STAT_NS_GPU_BUSY, busy);
 }
+
+void
+panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_t h,
+                       uint32_t mips, uint32_t layers, bool linear)
+{
+   static unsigned total;
+   unsigned n = __atomic_add_fetch(&total, 1, __ATOMIC_RELAXED);
+
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (stats_file && (n <= 60 || (n & (n - 1)) == 0))
+      diag_logf("gs-diag: bc-emu image #%u: vk_format=%u carrier=%u %ux%u mips=%u layers=%u%s",
+                n, vk_format, carrier, w, h, mips, layers, linear ? " linear" : "");
+}

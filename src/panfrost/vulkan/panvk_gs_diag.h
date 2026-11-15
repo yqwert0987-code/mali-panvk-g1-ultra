@@ -80,6 +80,11 @@ bool panvk_gs_diag_norast_instances(uint32_t instances);
  * too, so only the vertex compute job runs. */
 bool panvk_gs_diag_vsonly_instances(uint32_t instances);
 
+/* A block-compression image the driver emulates (hidden second plane, transcoded after copies):
+ * logs the first ones, and a count of all, to the stats file. */
+void panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_t h,
+                            uint32_t mips, uint32_t layers, bool linear);
+
 /* Stores a copy of rec in the ring and installs the fault hook on first use. */
 void panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec);
 

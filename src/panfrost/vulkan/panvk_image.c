@@ -17,6 +17,7 @@
 
 #include "panvk_android.h"
 #include "panvk_bc_emu.h"
+#include "panvk_gs_diag.h"
 #include "panvk_device.h"
 #include "panvk_device_memory.h"
 #include "panvk_entrypoints.h"
@@ -815,6 +816,13 @@ panvk_CreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
    image->bc_emu.linear_sampled = pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR &&
                                   (pCreateInfo->usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
                                   panvk_bc_emu_format(phys_dev, image->vk.format);
+
+   if (panvk_bc_emu_format(phys_dev, image->vk.format))
+      panvk_gs_diag_bc_image(image->vk.format,
+                             panvk_bc_emu_carrier(phys_dev, image->vk.format),
+                             pCreateInfo->extent.width, pCreateInfo->extent.height,
+                             pCreateInfo->mipLevels, pCreateInfo->arrayLayers,
+                             pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR);
 
    uint64_t size = panvk_image_get_total_size(image);
 
