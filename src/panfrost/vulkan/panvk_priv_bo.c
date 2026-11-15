@@ -9,6 +9,7 @@
 #include "vk_log.h"
 
 #include "panvk_device.h"
+#include "panvk_gs_diag.h"
 #include "panvk_priv_bo.h"
 
 #include "kmod/pan_kmod.h"
@@ -37,6 +38,7 @@ panvk_priv_bo_create(struct panvk_device *dev, uint64_t size, uint32_t flags,
 
    priv_bo->bo = bo;
    priv_bo->dev = dev;
+   panvk_stat_add(PANVK_STAT_PRIVBO_NEW, pan_kmod_bo_size(bo));
 
    if (!(flags & PAN_KMOD_BO_FLAG_NO_MMAP)) {
       priv_bo->addr.host =
@@ -166,6 +168,7 @@ panvk_priv_bo_destroy(struct panvk_priv_bo *priv_bo)
       assert(!ret);
    }
 
+   panvk_stat_add(PANVK_STAT_PRIVBO_FREED, pan_kmod_bo_size(priv_bo->bo));
    pan_kmod_bo_put(priv_bo->bo);
    vk_free(&dev->vk.alloc, priv_bo);
 }

@@ -243,7 +243,8 @@ stat_add(enum panvk_stat stat, uint64_t n)
            "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
            " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
-           " memavail_mib=%.0f\n",
+           " memavail_mib=%.0f privbo_new_mib_s=%.1f privbo_free_mib_s=%.1f vkmem_new_mib_s=%.1f"
+           " vkmem_free_mib_s=%.1f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
@@ -252,7 +253,10 @@ stat_add(enum panvk_stat stat, uint64_t n)
            d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0,
            d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0,
            d[PANVK_STAT_EMU_BYTES] / (1024.0 * 1024.0) / secs, read_rss_mib(),
-           read_memavail_mib());
+           read_memavail_mib(), d[PANVK_STAT_PRIVBO_NEW] / 1048576.0 / secs,
+           d[PANVK_STAT_PRIVBO_FREED] / 1048576.0 / secs,
+           d[PANVK_STAT_VKMEM_NEW] / 1048576.0 / secs,
+           d[PANVK_STAT_VKMEM_FREED] / 1048576.0 / secs);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
@@ -263,6 +267,12 @@ void
 panvk_stat_count(enum panvk_stat stat)
 {
    stat_add(stat, 1);
+}
+
+void
+panvk_stat_add(enum panvk_stat stat, uint64_t n)
+{
+   stat_add(stat, n);
 }
 
 uint64_t

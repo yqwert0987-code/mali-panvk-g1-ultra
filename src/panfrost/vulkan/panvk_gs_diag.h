@@ -72,10 +72,15 @@ enum panvk_stat {
    PANVK_STAT_NS_BC_REFRESH,  /* of which: refreshing emulated BC linear images */
    PANVK_STAT_NS_GPU_BUSY,    /* wall time with a submission outstanding (see below) */
    PANVK_STAT_EMU_BYTES,      /* bytes of buffers allocated for GS/tessellation emulation */
+   PANVK_STAT_PRIVBO_NEW,     /* bytes of driver-internal BOs created (pools, shaders, ...) */
+   PANVK_STAT_PRIVBO_FREED,   /* ... and destroyed */
+   PANVK_STAT_VKMEM_NEW,      /* bytes from vkAllocateMemory */
+   PANVK_STAT_VKMEM_FREED,    /* ... and vkFreeMemory */
    PANVK_STAT_COUNT,
 };
 
 void panvk_stat_count(enum panvk_stat stat);
+void panvk_stat_add(enum panvk_stat stat, uint64_t n);
 
 /*
  * Timing for the same file. panvk_stat_t0() returns 0 (one relaxed atomic load) when PANVK_STATS

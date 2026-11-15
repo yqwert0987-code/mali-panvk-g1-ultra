@@ -10,6 +10,7 @@
 #include "panvk_android.h"
 #include "panvk_device.h"
 #include "panvk_device_memory.h"
+#include "panvk_gs_diag.h"
 #include "panvk_entrypoints.h"
 
 #include "pan_props.h"
@@ -124,6 +125,8 @@ panvk_AllocateMemory(VkDevice _device,
          goto err_destroy_mem;
       }
    }
+
+   panvk_stat_add(PANVK_STAT_VKMEM_NEW, pan_kmod_bo_size(mem->bo));
 
    /* Always GPU-map at creation time. */
    struct pan_kmod_vm_op op = {
@@ -290,6 +293,7 @@ panvk_FreeMemory(VkDevice _device, VkDeviceMemory _mem,
 
    panvk_memory_emit_report(device, mem, /* alloc_info */ NULL, VK_SUCCESS);
 
+   panvk_stat_add(PANVK_STAT_VKMEM_FREED, pan_kmod_bo_size(mem->bo));
    pan_kmod_bo_put(mem->bo);
    vk_device_memory_destroy(&device->vk, pAllocator, &mem->vk);
 }
