@@ -3775,6 +3775,24 @@ enum gs_emulation {
  * draw to that. */
 /* Records every pointer field of a job's push block on the newest diagnostic record, for the
  * fault dump (panvk_gs_diag.h). */
+/* PANVK_EMU_CLEAR=1: a debugging aid. Zero the emulation's index and position buffers when they
+ * are allocated, so a slot the emulation never writes draws as index 0 / position 0 instead of
+ * whatever an earlier frame left in that memory. If garbage geometry or the tiler heap fault
+ * goes away with it, something reads memory the emulation did not initialise. */
+static void
+emu_clear(struct pan_ptr p, size_t bytes)
+{
+   static int init;
+   static bool enabled;
+   if (!init) {
+      const char *e = getenv("PANVK_EMU_CLEAR");
+      enabled = e && e[0] && e[0] != '0';
+      init = 1;
+   }
+   if (enabled && p.cpu && bytes)
+      memset(p.cpu, 0, bytes);
+}
+
 static void
 panvk_gs_diag_push(const struct panvk_gs_push *p)
 {
@@ -3934,6 +3952,8 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
        !out_offsets || (vs->gs.rec_stride && !in_gen.gpu) ||
        (out_rec->gs.rec_stride && !out_gen.gpu))
       return;
+   emu_clear(out_idx, (size_t)out_indices * 4);
+   emu_clear(out_pos, (size_t)out_verts * 16);
 
    /* The vertex shader: its descriptors, sysvals and push uniforms as for any draw. */
    cmdbuf->state.gfx.sysvals.gs_io.pos = in_pos.gpu;
@@ -4343,6 +4363,12 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
        (tes->gs.rec_stride && !tes_gen.gpu) || !tes_idx.gpu || !saved.gpu || !vs_offsets ||
        !tes_offsets || (gs && !gs_offsets))
       return;
+   emu_clear(tes_idx, (size_t)cap * 4);
+   emu_clear(tes_pos, (size_t)cap * 16);
+   if (gs) {
+      emu_clear(gs_idx, (size_t)out_indices * 4);
+      emu_clear(gs_pos, (size_t)out_verts * 16);
+   }
 
    {
       struct panvk_gs_diag_rec dr = {
