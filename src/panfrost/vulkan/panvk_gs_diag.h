@@ -76,6 +76,10 @@ bool panvk_gs_diag_skip_instances(uint32_t instances, uint32_t records);
  * the rasterization pass. If a GPU fault goes away, it was in the rasterization pass. */
 bool panvk_gs_diag_norast_instances(uint32_t instances);
 
+/* PANVK_GS_VS_ONLY_INSTANCES=<n>: like the above, but the geometry shader compute job is skipped
+ * too, so only the vertex compute job runs. */
+bool panvk_gs_diag_vsonly_instances(uint32_t instances);
+
 /* Stores a copy of rec in the ring and installs the fault hook on first use. */
 void panvk_gs_diag_commit(const struct panvk_gs_diag_rec *rec);
 

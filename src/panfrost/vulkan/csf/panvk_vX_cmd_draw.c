@@ -4074,14 +4074,17 @@ gs_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw,
    }
    vt_run_compute(cmdbuf, vs, vs_spd, cmdbuf->state.gfx.vs.desc.res_table, vs_pu.gpu,
                   vs->fau.total_count, 1, recs, inst, draw->vertex.base, false, setup.gpu);
-   vt_run_compute(cmdbuf, gs, pan_shader_get_spd_addr(&gs->info, panvk_priv_mem_dev_addr(gs->spd)),
-                  gs_desc.res_table, gs_pu.gpu, gs->fau.total_count, PANVK_GS_WORKGROUP_SIZE,
-                  wg, 1, 0, true, 0);
-   if (cmdbuf->state.gfx.gs.xfb_counts)
-      emit_xfb_jobs(cmdbuf, gs, out_idx.gpu, 0);
+   const bool vs_only = mode == GS_EMULATION_APP && panvk_gs_diag_vsonly_instances(inst);
+   if (!vs_only) {
+      vt_run_compute(cmdbuf, gs, pan_shader_get_spd_addr(&gs->info, panvk_priv_mem_dev_addr(gs->spd)),
+                     gs_desc.res_table, gs_pu.gpu, gs->fau.total_count, PANVK_GS_WORKGROUP_SIZE,
+                     wg, 1, 0, true, 0);
+      if (cmdbuf->state.gfx.gs.xfb_counts)
+         emit_xfb_jobs(cmdbuf, gs, out_idx.gpu, 0);
+   }
    vt_save_regs(b, saved.gpu, true);
 
-   if (mode == GS_EMULATION_APP && panvk_gs_diag_norast_instances(inst))
+   if (vs_only || (mode == GS_EMULATION_APP && panvk_gs_diag_norast_instances(inst)))
       return;
 
    /* The rasterization pass: the emulation's vertices through the rasterization variant. */
