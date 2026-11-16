@@ -296,15 +296,18 @@ stats_init(void)
          const char *level = os_get_option("PANVK_TESS_MAX_LEVEL");
          const char *clear = os_get_option("PANVK_EMU_CLEAR");
          const char *inflight = os_get_option("PANVK_TILER_IN_FLIGHT");
+         const char *nobc = os_get_option("PANVK_NO_BC_EMU");
+         const char *bigreuse = os_get_option("PANVK_DESC_BIG_REUSE");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
                  skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)",
                  chunks ? chunks : "(unset)",
                  level ? level : "(unset)", clear ? clear : "(unset)",
-                 inflight ? inflight : "(unset)");
+                 inflight ? inflight : "(unset)", nobc ? nobc : "(unset)",
+                 bigreuse ? bigreuse : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;

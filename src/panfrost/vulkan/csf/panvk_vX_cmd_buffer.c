@@ -1065,8 +1065,13 @@ panvk_create_cmdbuf(struct vk_command_pool *vk_pool, VkCommandBufferLevel level,
       .owns_bos = true,
       .needs_locking = false,
    };
-   panvk_pool_init(&cmdbuf->desc_pool, device, &pool->desc_bo_pool, NULL,
-                   &desc_pool_props);
+   static int desc_big_reuse = -1;
+   if (desc_big_reuse < 0) {
+      const char *e = getenv("PANVK_DESC_BIG_REUSE");
+      desc_big_reuse = e && e[0] == '1';
+   }
+   panvk_pool_init(&cmdbuf->desc_pool, device, &pool->desc_bo_pool,
+                   desc_big_reuse ? &pool->desc_big_bo_pool : NULL, &desc_pool_props);
 
    struct panvk_pool_properties tls_pool_props = {
       .create_flags =

@@ -14,6 +14,9 @@ struct panvk_cmd_pool {
    struct vk_command_pool vk;
    struct panvk_bo_pool cs_bo_pool;
    struct panvk_bo_pool desc_bo_pool;
+   /* Descriptor-pool buffers over a slab (the GS/tessellation emulation's worst-case buffers),
+    * kept for reuse when PANVK_DESC_BIG_REUSE=1, instead of made and freed per draw. */
+   struct panvk_bo_pool desc_big_bo_pool;
    struct panvk_bo_pool varying_bo_pool;
    /* Varying buffers over a slab (instanced draws), kept for reuse rather than made and freed
     * per draw. */
