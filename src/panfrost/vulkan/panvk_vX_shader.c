@@ -1232,6 +1232,19 @@ panvk_lower_nir_io(nir_shader *nir)
       NIR_PASS(_, nir, nir_lower_mediump_io, nir_var_shader_out, 0, false);
 }
 
+static uint32_t
+panvk_nir_instr_count(nir_shader *nir)
+{
+   uint32_t n = 0;
+   nir_foreach_function_impl(impl, nir) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr(instr, block)
+            n++;
+      }
+   }
+   return n;
+}
+
 static VkResult
 panvk_compile_nir(struct panvk_device *dev, nir_shader *nir,
                   VkShaderCreateFlagsEXT shader_flags,
@@ -1648,7 +1661,10 @@ panvk_compile_nir(struct panvk_device *dev, nir_shader *nir,
    /* We're going to modify this so make our own copy to be nicer to callers */
    struct pan_compile_inputs input = *compile_input;
 
+   const uint64_t pp_start = os_time_get_nano();
+   const uint32_t instrs_in = panvk_nir_instr_count(nir);
    pan_postprocess_nir(nir, &input, &shader->info);
+   const uint64_t pp_ns = os_time_get_nano() - pp_start;
 
    if (noperspective_varyings && nir->info.stage == MESA_SHADER_VERTEX) {
       NIR_PASS(_, nir, nir_inline_sysval,
@@ -1672,7 +1688,12 @@ panvk_compile_nir(struct panvk_device *dev, nir_shader *nir,
    input.fau.promote_immediates = true;
 
    struct util_dynarray binary = UTIL_DYNARRAY_INIT;
+   const uint64_t be_start = os_time_get_nano();
+   const uint32_t instrs_be = panvk_nir_instr_count(nir);
    pan_shader_compile(nir, &input, &binary, &shader->info);
+   panvk_gs_diag_compile_phases(nir->info.stage, instrs_in, instrs_be, pp_ns,
+                                os_time_get_nano() - be_start,
+                                util_dynarray_num_elements(&binary, uint8_t));
 
    /* Propagate potential additional FAU values into the panvk info struct. */
    /* FAU consts are pushed as 32bit values, but total_count is for 64bit

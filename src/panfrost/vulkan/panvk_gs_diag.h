@@ -90,6 +90,11 @@ void panvk_gs_diag_gs_shader(uint32_t in_verts, uint32_t out_verts, uint32_t max
  * total, to tell a slow-compile stall from a GPU stall. */
 void panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t elapsed_ns);
 
+/* Breakdown of one compile: NIR instruction counts before the generic post-processing and
+ * before the backend, time spent in each, and the binary size. Logged for slow ones only. */
+void panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs_backend,
+                                  uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes);
+
 /* A block-compression image the driver emulates (hidden second plane, transcoded after copies):
  * logs the first ones, and a count of all, to the stats file. */
 void panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_t h,

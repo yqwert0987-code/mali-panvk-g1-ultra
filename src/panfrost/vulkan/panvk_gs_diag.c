@@ -549,3 +549,18 @@ panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t elap
                 n, shader_count, first_stage, (unsigned long long)(elapsed_ns / 1000000),
                 (unsigned long long)(tot / 1000000));
 }
+
+void
+panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs_backend,
+                             uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes)
+{
+   if (postprocess_ns + backend_ns < 200000000ull)
+      return;
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (stats_file)
+      diag_logf("gs-diag: slow compile detail: stage=%u nir_instrs=%u -> %u postprocess=%llu ms "
+                "backend=%llu ms binary=%u bytes",
+                stage, instrs_in, instrs_backend, (unsigned long long)(postprocess_ns / 1000000),
+                (unsigned long long)(backend_ns / 1000000), bin_bytes);
+}
