@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
 #include "drm-uapi/panthor_drm.h"
 
 #include "genxml/cs_builder.h"
@@ -831,9 +832,22 @@ init_tiler(struct panvk_gpu_queue *queue)
 
    if (pan_kmod_dev_is_kbase(dev->kmod.dev)) {
       uint64_t first_chunk;
+
+      /* PANVK_TILER_IN_FLIGHT=<1..65535>: opt-in. How many render passes the kernel may keep
+       * in flight on the heap; each holds its chunks until its fragment job is done, so a
+       * lower number should make the tiler wait for the fragment work instead of filling the
+       * heap while frames queue up. Unset keeps 65535. */
+      uint16_t in_flight = 65535;
+      const char *in_flight_env = getenv("PANVK_TILER_IN_FLIGHT");
+      if (in_flight_env) {
+         unsigned long v = strtoul(in_flight_env, NULL, 0);
+         if (v >= 1 && v <= 65535)
+            in_flight = (uint16_t)v;
+      }
+
       if (!pan_kmod_kbase_csf_tiler_heap_create(
              dev->kmod.dev, tiler_heap->chunk_size, phys_dev->csf.tiler.initial_chunks,
-             phys_dev->csf.tiler.max_chunks, 65535, &tiler_heap->context.dev_addr,
+             phys_dev->csf.tiler.max_chunks, in_flight, &tiler_heap->context.dev_addr,
              &first_chunk)) {
          result = panvk_errorf(dev, VK_ERROR_INITIALIZATION_FAILED,
                                "Failed to create a tiler heap context");
