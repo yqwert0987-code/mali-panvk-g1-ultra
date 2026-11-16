@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "util/u_debug.h"
 #include "util/u_memory.h"
 #include "bi_debug.h"
 #include "bi_builder.h"
 #include "compiler.h"
 #include "nodearray.h"
 #include "valhall.h"
+
+#define PAN_MAX_SPILL_BATCH 32
+
+DEBUG_GET_ONCE_NUM_OPTION(ra_spill_batch, "PAN_RA_SPILL_BATCH", 1)
 
 struct lcra_state {
    unsigned node_count;
@@ -1384,6 +1389,74 @@ op_is_store(enum bi_opcode op)
    }
 }
 
+/* Like bi_choose_spill_node, but returns up to max nodes (best benefit first). Used to spill
+ * several values per allocation attempt, since each attempt recomputes liveness and
+ * interference for the whole shader and shaders needing many spills otherwise take
+ * hundreds of attempts. Returns the number of nodes written to out. */
+static unsigned
+bi_choose_spill_nodes(bi_context *ctx, struct lcra_state *l, unsigned max, unsigned *out)
+{
+   BITSET_WORD *no_spill = BITSET_CALLOC(l->node_count);
+   unsigned benefits[PAN_MAX_SPILL_BATCH];
+   unsigned count = 0;
+
+   bi_foreach_instr_global(ctx, ins) {
+      bi_foreach_dest(ins, d) {
+         if (ins->no_spill || ins->op == BI_OPCODE_ATEST ||
+             ins->op == BI_OPCODE_ZS_EMIT ||
+             (ins->op == BI_OPCODE_MOV_I32 &&
+              ins->src[0].type == BI_INDEX_REGISTER &&
+              ins->src[0].value ==
+                 bi_preload_reg(BI_PRELOAD_CUMULATIVE_COVERAGE, ctx->arch))) {
+            BITSET_SET(no_spill, ins->dest[d].value);
+         }
+      }
+   }
+
+   /* Keeps the best max candidates sorted by benefit (insertion into a short array). */
+#define CONSIDER(node_, benefit_)                                              \
+   do {                                                                        \
+      unsigned n_ = (node_), b_ = (benefit_);                                  \
+      if (b_ > 0 && (count < max || b_ > benefits[count - 1])) {               \
+         unsigned at_ = count < max ? count++ : count - 1;                     \
+         while (at_ > 0 && benefits[at_ - 1] < b_) {                           \
+            benefits[at_] = benefits[at_ - 1];                                 \
+            out[at_] = out[at_ - 1];                                           \
+            at_--;                                                             \
+         }                                                                     \
+         benefits[at_] = b_;                                                   \
+         out[at_] = n_;                                                        \
+      }                                                                        \
+   } while (0)
+
+   if (!BITSET_TEST(no_spill, l->spill_node))
+      CONSIDER(l->spill_node, lcra_count_constraints(l, l->spill_node));
+
+   if (nodearray_is_sparse(&l->linear[l->spill_node])) {
+      nodearray_sparse_foreach(&l->linear[l->spill_node], elem) {
+         unsigned i = nodearray_sparse_key(elem);
+
+         if (!nodearray_sparse_value(elem) || BITSET_TEST(no_spill, i))
+            continue;
+
+         CONSIDER(i, lcra_count_constraints(l, i));
+      }
+   } else {
+      nodearray_value *row = l->linear[l->spill_node].dense;
+
+      for (unsigned i = 0; i < l->node_count; ++i) {
+         if (!row[i] || BITSET_TEST(no_spill, i))
+            continue;
+
+         CONSIDER(i, lcra_count_constraints(l, i));
+      }
+   }
+#undef CONSIDER
+
+   free(no_spill);
+   return count;
+}
+
 static void
 compute_spill_cost(bi_context *ctx)
 {
@@ -1549,17 +1622,33 @@ bi_register_allocate(bi_context *ctx)
       if (success) {
          ctx->info.work_reg_count = BI_MAX_REGS;
       } else {
-         signed spill_node = bi_choose_spill_node(ctx, l);
-
-         if (spill_node == -1)
-            UNREACHABLE("Failed to choose spill node\n");
-
          if (ctx->inputs->is_blend)
             UNREACHABLE("Blend shaders may not spill");
 
-         spill_count =
-            bi_spill_register(ctx, bi_get_index(spill_node), spill_count,
-                              bi_get_index(l->spill_node));
+         /* PAN_RA_SPILL_BATCH > 1 spills several values per attempt once the shader has
+          * needed a few single spills (the first ones stay exact). */
+         unsigned batch = debug_get_option_ra_spill_batch();
+         batch = CLAMP(batch, 1u, PAN_MAX_SPILL_BATCH);
+         unsigned nodes[PAN_MAX_SPILL_BATCH];
+         unsigned num_nodes = 0;
+
+         if (batch > 1 && iter_count > 4) {
+            num_nodes = bi_choose_spill_nodes(ctx, l, batch, nodes);
+         } else {
+            signed spill_node = bi_choose_spill_node(ctx, l);
+
+            if (spill_node != -1)
+               nodes[num_nodes++] = spill_node;
+         }
+
+         if (num_nodes == 0)
+            UNREACHABLE("Failed to choose spill node\n");
+
+         for (unsigned n = 0; n < num_nodes; ++n) {
+            spill_count =
+               bi_spill_register(ctx, bi_get_index(nodes[n]), spill_count,
+                                 bi_get_index(l->spill_node));
+         }
 
          lcra_free(l);
          l = NULL;
