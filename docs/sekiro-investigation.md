@@ -5,7 +5,7 @@ Game: Sekiro (DX11). Renderer used so far: wined3d (OpenGL) on Zink; the DXVK ru
 confirmed to be drawing (the Wine log of that run still showed wined3d lines).
 
 ## What works now
-- The game starts, runs the cutscene and gameplay at 30+ fps for about two minutes.
+- The game starts, runs the cutscene and gameplay at 10-20 fps for about two minutes.
 - The out-of-memory kill after the cutscene is gone: command-buffer thread stacks are shared
   (default on, PANVK_TLS_SHARE=0 turns it off).
 
@@ -51,3 +51,11 @@ confirmed to be drawing (the Wine log of that run still showed wined3d lines).
 
 Run settings that gave the longest run so far: PANVK_TESS_MAX_LEVEL=8,
 PANVK_GS_VS_ONLY_INSTANCES=64, PANVK_TILER_MAX_CHUNKS=256.
+
+## No-rebuild toggles worth trying for the wrong colours / vanishing ground (untested)
+- PANVK_DEBUG=noafbc: no AFBC compression on images. A deferred renderer writes its G-buffer to
+  offscreen targets and samples them in the lighting pass; broken AFBC on v14 would colour every
+  3D asset wrongly while the UI (drawn straight to the swapchain) stays fine, and a broken depth
+  buffer would make the ground vanish and pop back.
+- PANVK_DEBUG=no_crc, PANVK_DEBUG=linear: other layout / tile-CRC suspects.
+- PANVK_NO_MEDIUMP=1: keeps all shader maths 32-bit (the driver runs RelaxedPrecision in 16 bits).
