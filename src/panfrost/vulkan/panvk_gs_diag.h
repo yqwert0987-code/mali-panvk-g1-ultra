@@ -86,6 +86,10 @@ void panvk_gs_diag_gs_shader(uint32_t in_verts, uint32_t out_verts, uint32_t max
                              uint32_t invocations, uint64_t outputs_written, bool writes_layer,
                              bool writes_viewport, bool writes_clip, bool writes_psiz);
 
+/* A shader compile finished: logs compiles slower than 50 ms, and every 100th, with a running
+ * total, to tell a slow-compile stall from a GPU stall. */
+void panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t elapsed_ns);
+
 /* A block-compression image the driver emulates (hidden second plane, transcoded after copies):
  * logs the first ones, and a count of all, to the stats file. */
 void panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_t h,

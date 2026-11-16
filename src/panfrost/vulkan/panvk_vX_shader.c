@@ -20,6 +20,7 @@
 #include "panvk_physical_device.h"
 #include "panvk_sampler.h"
 #include "panvk_gs_diag.h"
+#include "util/os_time.h"
 #include "panvk_shader.h"
 
 #include "spirv/nir_spirv.h"
@@ -3032,9 +3033,12 @@ panvk_compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
 {
    panvk_per_arch(compiler_lock)();
 
+   const uint64_t compile_start = os_time_get_nano();
    VkResult result = compile_shaders(vk_dev, shader_count, infos, state,
                                      enabled_features, pAllocator,
                                      shaders_out);
+   panvk_gs_diag_compile(shader_count, shader_count ? infos[0].stage : 0,
+                         os_time_get_nano() - compile_start);
 
    panvk_per_arch(compiler_unlock)();
 

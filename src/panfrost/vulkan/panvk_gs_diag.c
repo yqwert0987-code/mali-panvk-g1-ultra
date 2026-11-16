@@ -531,3 +531,21 @@ panvk_gs_diag_gs_shader(uint32_t in_verts, uint32_t out_verts, uint32_t max_vert
                 in_verts, out_verts, max_verts, invocations, (unsigned long long)outputs_written,
                 writes_layer, writes_viewport, writes_clip, writes_psiz);
 }
+
+void
+panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t elapsed_ns)
+{
+   static uint64_t total_ns;
+   static unsigned total_n;
+   uint64_t tot = __atomic_add_fetch(&total_ns, elapsed_ns, __ATOMIC_RELAXED);
+   unsigned n = __atomic_add_fetch(&total_n, 1, __ATOMIC_RELAXED);
+
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   /* Only slow compiles and every 100th are logged, to keep the file small. */
+   if (stats_file && (elapsed_ns >= 50000000ull || n % 100 == 0))
+      diag_logf("gs-diag: shader compile #%u: %u shader(s), first stage %u, took %llu ms "
+                "(total so far %llu ms)",
+                n, shader_count, first_stage, (unsigned long long)(elapsed_ns / 1000000),
+                (unsigned long long)(tot / 1000000));
+}
