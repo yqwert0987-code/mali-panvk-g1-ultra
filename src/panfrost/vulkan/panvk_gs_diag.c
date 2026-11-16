@@ -516,3 +516,18 @@ panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_
       diag_logf("gs-diag: bc-emu image #%u: vk_format=%u carrier=%u %ux%u mips=%u layers=%u%s",
                 n, vk_format, carrier, w, h, mips, layers, linear ? " linear" : "");
 }
+
+void
+panvk_gs_diag_gs_shader(uint32_t in_verts, uint32_t out_verts, uint32_t max_verts,
+                        uint32_t invocations, uint64_t outputs_written, bool writes_layer,
+                        bool writes_viewport, bool writes_clip, bool writes_psiz)
+{
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (stats_file)
+      diag_logf("gs-diag: geometry shader compiled: in_verts=%u out_verts=%u max_vertices=%u "
+                "invocations=%u outputs_written=0x%llx layer=%d viewport=%d clip_cull=%d "
+                "point_size=%d",
+                in_verts, out_verts, max_verts, invocations, (unsigned long long)outputs_written,
+                writes_layer, writes_viewport, writes_clip, writes_psiz);
+}

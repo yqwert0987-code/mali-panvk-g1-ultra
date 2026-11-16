@@ -80,6 +80,12 @@ bool panvk_gs_diag_norast_instances(uint32_t instances);
  * too, so only the vertex compute job runs. */
 bool panvk_gs_diag_vsonly_instances(uint32_t instances);
 
+/* An application geometry shader was compiled: logs what it reads and writes, including the
+ * built-in outputs (layer, viewport index) that the emulation has no tiler path for. */
+void panvk_gs_diag_gs_shader(uint32_t in_verts, uint32_t out_verts, uint32_t max_verts,
+                             uint32_t invocations, uint64_t outputs_written, bool writes_layer,
+                             bool writes_viewport, bool writes_clip, bool writes_psiz);
+
 /* A block-compression image the driver emulates (hidden second plane, transcoded after copies):
  * logs the first ones, and a count of all, to the stats file. */
 void panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_t h,

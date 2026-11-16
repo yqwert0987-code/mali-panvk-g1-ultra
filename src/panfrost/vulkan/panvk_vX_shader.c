@@ -19,6 +19,7 @@
 #include "panvk_nir.h"
 #include "panvk_physical_device.h"
 #include "panvk_sampler.h"
+#include "panvk_gs_diag.h"
 #include "panvk_shader.h"
 
 #include "spirv/nir_spirv.h"
@@ -2615,6 +2616,16 @@ panvk_compile_shader(struct panvk_device *dev,
       if (variant->gs.writes_viewport)
          variant->gs.outputs_written |= BITFIELD64_BIT(PANVK_GS_VIEWPORT_INDEX_SLOT);
       variant->gs.output_prim = nir->info.gs.output_primitive;
+
+      panvk_gs_diag_gs_shader(
+         in_verts, out_verts, nir->info.gs.vertices_out, variant->gs.invocations,
+         variant->gs.outputs_written,
+         !!(variant->gs.outputs_written & BITFIELD64_BIT(VARYING_SLOT_LAYER)),
+         variant->gs.writes_viewport,
+         !!(variant->gs.outputs_written &
+            (BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST0) | BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST1) |
+             BITFIELD64_BIT(VARYING_SLOT_CULL_DIST0) | BITFIELD64_BIT(VARYING_SLOT_CULL_DIST1))),
+         !!(variant->gs.outputs_written & BITFIELD64_BIT(VARYING_SLOT_PSIZ)));
 
       const int xfb_dwords = panvk_gs_xfb_table(nir->xfb_info, variant->gs.xfb_table);
       if (xfb_dwords < 0) {
