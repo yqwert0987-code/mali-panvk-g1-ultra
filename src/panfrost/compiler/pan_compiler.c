@@ -370,12 +370,14 @@ pan_shader_update_info(struct pan_shader_info *info, nir_shader *s,
 }
 
 __thread uint64_t pan_phase_ns[PAN_PHASE_COUNT];
+__thread uint32_t pan_counters[PAN_CNT_COUNT];
 static __thread uint64_t pan_phase_last;
 
 void
 pan_phase_reset(void)
 {
    memset(pan_phase_ns, 0, sizeof(pan_phase_ns));
+   memset(pan_counters, 0, sizeof(pan_counters));
    pan_phase_last = os_time_get_nano();
 }
 

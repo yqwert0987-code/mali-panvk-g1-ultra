@@ -666,8 +666,23 @@ enum pan_phase {
    PAN_PHASE_PRESSURE,
    PAN_PHASE_RA,
    PAN_PHASE_PACK,
+   PAN_PHASE_RA_SSA_SPILL,
+   PAN_PHASE_RA_INTERFERENCE,
+   PAN_PHASE_RA_SOLVE,
+   PAN_PHASE_RA_SPILL,
    PAN_PHASE_COUNT,
 };
+
+/* Event counters for the same compile (register allocator attempts and spills). */
+enum pan_counter {
+   PAN_CNT_RA_ATTEMPTS,
+   PAN_CNT_RA_SPILL_ITERS,
+   PAN_CNT_RA_NODES,
+   PAN_CNT_RA_SPILL_BYTES,
+   PAN_CNT_COUNT,
+};
+
+extern __thread uint32_t pan_counters[PAN_CNT_COUNT];
 
 extern __thread uint64_t pan_phase_ns[PAN_PHASE_COUNT];
 void pan_phase_reset(void);

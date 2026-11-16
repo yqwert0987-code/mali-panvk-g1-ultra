@@ -95,7 +95,7 @@ void panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t
  * (translate, opt, valhall, late, iter-sched, pressure-sched, regalloc, pack; 8 values). Logged for slow ones only. */
 void panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs_backend,
                                   uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes,
-                                  const uint64_t *phase_ns);
+                                  const uint64_t *phase_ns, const uint32_t *counters);
 
 /* A block-compression image the driver emulates (hidden second plane, transcoded after copies):
  * logs the first ones, and a count of all, to the stats file. */

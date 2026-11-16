@@ -502,7 +502,11 @@ bi_allocate_registers(bi_context *ctx, bool *success, bool full_regs)
       }
    }
 
+   pan_phase_mark(PAN_PHASE_RA);
+   pan_counters[PAN_CNT_RA_ATTEMPTS]++;
+   pan_counters[PAN_CNT_RA_NODES] = ctx->ssa_alloc;
    bi_compute_interference(ctx, l, full_regs);
+   pan_phase_mark(PAN_PHASE_RA_INTERFERENCE);
 
    /* Coalesce register moves if we're allowed. We need to be careful due
     * to the restricted affinity induced by the blend shader ABI.
@@ -539,6 +543,7 @@ bi_allocate_registers(bi_context *ctx, bool *success, bool full_regs)
    }
 
    *success = lcra_solve(l);
+   pan_phase_mark(PAN_PHASE_RA_SOLVE);
 
    return l;
 }
@@ -1479,6 +1484,7 @@ bi_register_allocate(bi_context *ctx)
           */
          if (ctx->arch >= 9)
             spill_count = ALIGN_POT(spill_count, 16);
+         pan_phase_mark(PAN_PHASE_RA_SSA_SPILL);
          if (verbose) {
             fprintf(stderr, "\nspill_registers=%d\n", spill_count);
             bi_print_shader(ctx, stderr);
@@ -1561,6 +1567,8 @@ bi_register_allocate(bi_context *ctx)
           * operands, we need to fix up.
           */
          bi_coalesce_tied(ctx);
+         pan_counters[PAN_CNT_RA_SPILL_ITERS]++;
+         pan_phase_mark(PAN_PHASE_RA_SPILL);
       }
    }
 
@@ -1572,6 +1580,7 @@ bi_register_allocate(bi_context *ctx)
    if (ctx->arch >= 9)
       spill_count = ALIGN_POT(spill_count, 16);
    ctx->info.tls_size = spill_count;
+   pan_counters[PAN_CNT_RA_SPILL_BYTES] = spill_count;
    bi_install_registers(ctx, l);
 
    lcra_free(l);

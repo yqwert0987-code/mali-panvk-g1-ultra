@@ -553,20 +553,28 @@ panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t elap
 void
 panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs_backend,
                              uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes,
-                             const uint64_t *phase_ns)
+                             const uint64_t *phase_ns, const uint32_t *counters)
 {
+   static const char *const names[] = {"translate", "opt",          "valhall",       "late",
+                                       "iter_sched", "pressure_sched", "ra_other",     "pack",
+                                       "ra_ssa_spill", "ra_interference", "ra_solve", "ra_spill"};
+   char buf[400];
+   size_t len = 0;
+
    if (postprocess_ns + backend_ns < 200000000ull)
       return;
    if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
       stats_init();
-   if (stats_file)
-      diag_logf("gs-diag: slow compile detail: stage=%u nir_instrs=%u -> %u postprocess=%llu ms "
-                "backend=%llu ms binary=%u bytes; backend phases ms: translate=%llu opt=%llu "
-                "valhall=%llu late=%llu iter_sched=%llu pressure_sched=%llu regalloc=%llu pack=%llu",
-                stage, instrs_in, instrs_backend, (unsigned long long)(postprocess_ns / 1000000),
-                (unsigned long long)(backend_ns / 1000000), bin_bytes,
-                (unsigned long long)(phase_ns[0] / 1000000), (unsigned long long)(phase_ns[1] / 1000000),
-                (unsigned long long)(phase_ns[2] / 1000000), (unsigned long long)(phase_ns[3] / 1000000),
-                (unsigned long long)(phase_ns[4] / 1000000), (unsigned long long)(phase_ns[5] / 1000000),
-                (unsigned long long)(phase_ns[6] / 1000000), (unsigned long long)(phase_ns[7] / 1000000));
+   if (!stats_file)
+      return;
+
+   for (unsigned i = 0; i < ARRAY_SIZE(names) && len < sizeof(buf); i++)
+      len += snprintf(buf + len, sizeof(buf) - len, " %s=%llu", names[i],
+                      (unsigned long long)(phase_ns[i] / 1000000));
+   diag_logf("gs-diag: slow compile detail: stage=%u nir_instrs=%u -> %u postprocess=%llu ms "
+             "backend=%llu ms binary=%u bytes; backend phases ms:%s; ra attempts=%u "
+             "spill_iters=%u nodes=%u spill_bytes=%u",
+             stage, instrs_in, instrs_backend, (unsigned long long)(postprocess_ns / 1000000),
+             (unsigned long long)(backend_ns / 1000000), bin_bytes, buf, counters[0], counters[1],
+             counters[2], counters[3]);
 }
