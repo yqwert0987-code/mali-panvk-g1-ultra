@@ -4326,6 +4326,7 @@ bi_compile_variant_nir(nir_shader *nir,
    }
 
    bi_validate(ctx, "NIR -> BIR");
+   pan_phase_mark(PAN_PHASE_TRANSLATE);
 
    bool optimize = !(bifrost_debug & BIFROST_DBG_NOOPT);
 
@@ -4364,6 +4365,7 @@ bi_compile_variant_nir(nir_shader *nir,
       bi_validate(ctx, "Optimization passes");
    }
 
+   pan_phase_mark(PAN_PHASE_OPT);
    bi_lower_opt_instructions(ctx);
    bi_lower_mkvec_swz(ctx);
 
@@ -4421,6 +4423,7 @@ bi_compile_variant_nir(nir_shader *nir,
       bi_validate(ctx, "Valhall passes");
    }
 
+   pan_phase_mark(PAN_PHASE_VALHALL);
    bi_foreach_block(ctx, block) {
       bi_lower_branch(ctx, block);
    }
@@ -4459,14 +4462,18 @@ bi_compile_variant_nir(nir_shader *nir,
 
    bi_validate(ctx, "Late lowering");
 
+   pan_phase_mark(PAN_PHASE_LATE);
    bi_iterator_schedule(ctx);
+   pan_phase_mark(PAN_PHASE_ITER_SCHED);
 
    if (likely(!(bifrost_debug & BIFROST_DBG_NOPSCHED))) {
       bi_pressure_schedule(ctx);
       bi_validate(ctx, "Pre-RA scheduling");
    }
 
+   pan_phase_mark(PAN_PHASE_PRESSURE);
    bi_register_allocate(ctx);
+   pan_phase_mark(PAN_PHASE_RA);
 
    if (likely(optimize))
       bi_opt_post_ra(ctx);
@@ -4525,6 +4532,8 @@ bi_compile_variant_nir(nir_shader *nir,
 
       fflush(stderr);
    }
+
+   pan_phase_mark(PAN_PHASE_PACK);
 
    /* gather instruction statistics */
    if (ctx->arch >= 9) {

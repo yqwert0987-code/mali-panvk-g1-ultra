@@ -655,6 +655,24 @@ pan_res_handle(unsigned table, unsigned index)
    return (table << 24) | index;
 }
 
+/* Time spent in each phase of the last backend compile on this thread, for diagnosing slow
+ * shader compiles. pan_shader_compile() resets it. */
+enum pan_phase {
+   PAN_PHASE_TRANSLATE,
+   PAN_PHASE_OPT,
+   PAN_PHASE_VALHALL,
+   PAN_PHASE_LATE,
+   PAN_PHASE_ITER_SCHED,
+   PAN_PHASE_PRESSURE,
+   PAN_PHASE_RA,
+   PAN_PHASE_PACK,
+   PAN_PHASE_COUNT,
+};
+
+extern __thread uint64_t pan_phase_ns[PAN_PHASE_COUNT];
+void pan_phase_reset(void);
+void pan_phase_mark(enum pan_phase phase);
+
 void pan_disassemble(FILE *fp, const void *code, size_t size, uint64_t gpu_id,
                      bool verbose);
 

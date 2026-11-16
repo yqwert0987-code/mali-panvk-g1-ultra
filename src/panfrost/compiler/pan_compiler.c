@@ -4,6 +4,8 @@
  */
 
 #include "pan_compiler.h"
+#include <string.h>
+#include "util/os_time.h"
 #include "nir_xfb_info.h"
 #include "pan_nir.h"
 
@@ -367,11 +369,32 @@ pan_shader_update_info(struct pan_shader_info *info, nir_shader *s,
    }
 }
 
+__thread uint64_t pan_phase_ns[PAN_PHASE_COUNT];
+static __thread uint64_t pan_phase_last;
+
+void
+pan_phase_reset(void)
+{
+   memset(pan_phase_ns, 0, sizeof(pan_phase_ns));
+   pan_phase_last = os_time_get_nano();
+}
+
+/* Adds the time since the previous mark (or the reset) to the given phase. */
+void
+pan_phase_mark(enum pan_phase phase)
+{
+   uint64_t now = os_time_get_nano();
+   pan_phase_ns[phase] += now - pan_phase_last;
+   pan_phase_last = now;
+}
+
 void
 pan_shader_compile(nir_shader *s, struct pan_compile_inputs *inputs,
                    struct util_dynarray *binary, struct pan_shader_info *info)
 {
    unsigned arch = inputs->arch;
+
+   pan_phase_reset();
 
    NIR_PASS(_, s, nir_inline_sysval, nir_intrinsic_load_printf_buffer_size,
             PAN_PRINTF_BUFFER_SIZE - 8);

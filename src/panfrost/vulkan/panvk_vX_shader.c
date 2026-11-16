@@ -1693,7 +1693,8 @@ panvk_compile_nir(struct panvk_device *dev, nir_shader *nir,
    pan_shader_compile(nir, &input, &binary, &shader->info);
    panvk_gs_diag_compile_phases(nir->info.stage, instrs_in, instrs_be, pp_ns,
                                 os_time_get_nano() - be_start,
-                                util_dynarray_num_elements(&binary, uint8_t));
+                                util_dynarray_num_elements(&binary, uint8_t),
+                                pan_phase_ns);
 
    /* Propagate potential additional FAU values into the panvk info struct. */
    /* FAU consts are pushed as 32bit values, but total_count is for 64bit

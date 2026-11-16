@@ -552,7 +552,8 @@ panvk_gs_diag_compile(uint32_t shader_count, uint32_t first_stage, uint64_t elap
 
 void
 panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs_backend,
-                             uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes)
+                             uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes,
+                             const uint64_t *phase_ns)
 {
    if (postprocess_ns + backend_ns < 200000000ull)
       return;
@@ -560,7 +561,12 @@ panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs
       stats_init();
    if (stats_file)
       diag_logf("gs-diag: slow compile detail: stage=%u nir_instrs=%u -> %u postprocess=%llu ms "
-                "backend=%llu ms binary=%u bytes",
+                "backend=%llu ms binary=%u bytes; backend phases ms: translate=%llu opt=%llu "
+                "valhall=%llu late=%llu iter_sched=%llu pressure_sched=%llu regalloc=%llu pack=%llu",
                 stage, instrs_in, instrs_backend, (unsigned long long)(postprocess_ns / 1000000),
-                (unsigned long long)(backend_ns / 1000000), bin_bytes);
+                (unsigned long long)(backend_ns / 1000000), bin_bytes,
+                (unsigned long long)(phase_ns[0] / 1000000), (unsigned long long)(phase_ns[1] / 1000000),
+                (unsigned long long)(phase_ns[2] / 1000000), (unsigned long long)(phase_ns[3] / 1000000),
+                (unsigned long long)(phase_ns[4] / 1000000), (unsigned long long)(phase_ns[5] / 1000000),
+                (unsigned long long)(phase_ns[6] / 1000000), (unsigned long long)(phase_ns[7] / 1000000));
 }
