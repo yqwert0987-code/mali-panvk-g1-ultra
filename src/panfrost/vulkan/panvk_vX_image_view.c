@@ -70,6 +70,69 @@ panvk_storage_pview(const struct panvk_image_view *view,
    return spview;
 }
 
+/* Diagnostic: PANVK_VIEW_SWIZZLE="<vk_format>:<4 chars>[,<vk_format>:<4 chars>...]" re-swizzles
+ * sampled views of that VkFormat, e.g. "122:rg01" zeroes the blue channel of every
+ * B10G11R11_UFLOAT view. Chars: r g b a 0 1 (r, g, b, a pick from the view's own channels).
+ * Unset: no effect. */
+static void
+panvk_diag_view_swizzle(unsigned vk_format, unsigned char sw[4])
+{
+   static struct {
+      unsigned fmt;
+      unsigned char sw[4];
+   } ent[16];
+   static unsigned n;
+   static int state;
+
+   int expected = 0;
+   if (__atomic_compare_exchange_n(&state, &expected, 1, false, __ATOMIC_ACQ_REL,
+                                   __ATOMIC_ACQUIRE)) {
+      const char *e = getenv("PANVK_VIEW_SWIZZLE");
+      while (e && *e && n < 16) {
+         char *end;
+         unsigned long f = strtoul(e, &end, 10);
+         if (end == e || *end != ':')
+            break;
+         e = end + 1;
+         unsigned char s[4];
+         unsigned i;
+         for (i = 0; i < 4 && *e; i++, e++) {
+            switch (*e) {
+            case 'r': s[i] = PIPE_SWIZZLE_X; break;
+            case 'g': s[i] = PIPE_SWIZZLE_Y; break;
+            case 'b': s[i] = PIPE_SWIZZLE_Z; break;
+            case 'a': s[i] = PIPE_SWIZZLE_W; break;
+            case '0': s[i] = PIPE_SWIZZLE_0; break;
+            case '1': s[i] = PIPE_SWIZZLE_1; break;
+            default: s[i] = PIPE_SWIZZLE_X; break;
+            }
+         }
+         if (i < 4)
+            break;
+         ent[n].fmt = (unsigned)f;
+         memcpy(ent[n].sw, s, 4);
+         n++;
+         if (*e == ',')
+            e++;
+         else
+            break;
+      }
+      __atomic_store_n(&state, 2, __ATOMIC_RELEASE);
+   } else {
+      while (__atomic_load_n(&state, __ATOMIC_ACQUIRE) != 2)
+         ;
+   }
+
+   for (unsigned k = 0; k < n; k++) {
+      if (ent[k].fmt != vk_format)
+         continue;
+      unsigned char old[4];
+      memcpy(old, sw, 4);
+      for (unsigned i = 0; i < 4; i++)
+         sw[i] = ent[k].sw[i] <= PIPE_SWIZZLE_W ? old[ent[k].sw[i]] : ent[k].sw[i];
+   }
+}
+
 static VkResult
 prepare_tex_descs(struct panvk_image_view *view)
 {
@@ -418,6 +481,7 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
       }
    }
    vk_component_mapping_to_pipe_swizzle(view->vk.swizzle, view->pview.swizzle);
+   panvk_diag_view_swizzle(view->vk.view_format, view->pview.swizzle);
    if (bc_emu_alpha) {
       /* BC4 rides in BC3's alpha half: (A, 0, 0, 1) under the view's own swizzle. */
       static const unsigned char a001[4] = {PIPE_SWIZZLE_W, PIPE_SWIZZLE_0, PIPE_SWIZZLE_0,

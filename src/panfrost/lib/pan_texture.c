@@ -9,6 +9,7 @@
  */
 
 #include "pan_texture.h"
+#include <stdlib.h>
 #include "genxml/gen_macros.h"
 #include "util/macros.h"
 #include "util/u_math.h"
@@ -1357,8 +1358,21 @@ GENX(pan_storage_texture_emit)(const struct pan_image_view *iview,
    /* Compressed formats can't be used with storage operations */
    assert(!util_format_is_compressed(iview->format));
 
+   /* Diagnostic: PANVK_STORAGE_BGRA=1 describes B8G8R8A8_UNORM storage views as R8G8B8A8_UNORM, to
+    * test whether the red/blue order of typed stores is wrong. Unset: no effect. */
+   enum pipe_format storage_format = iview->format;
+   {
+      static int bgra_mode = -1;
+      if (bgra_mode < 0) {
+         const char *e = getenv("PANVK_STORAGE_BGRA");
+         bgra_mode = e && e[0] == '1';
+      }
+      if (bgra_mode && storage_format == PIPE_FORMAT_B8G8R8A8_UNORM)
+         storage_format = PIPE_FORMAT_R8G8B8A8_UNORM;
+   }
+
    uint32_t mali_format =
-      GENX(pan_format_from_pipe_format)(iview->format)->hw;
+      GENX(pan_format_from_pipe_format)(storage_format)->hw;
 
    pan_emit_iview_texture_payload(iview, payload->cpu);
 

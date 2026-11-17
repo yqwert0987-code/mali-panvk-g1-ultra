@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
+
 #include "util/u_dynarray.h"
 
 #include "nir_builder.h"
@@ -341,7 +343,13 @@ panvk_per_arch(blend_emit_descs)(struct panvk_cmd_buffer *cmdbuf,
       rt->nr_samples = color_attachment_samples[i];
       rt->equation.blend_enable = cb->attachments[i].blend_enable;
       rt->equation.is_float = is_float;
-      rt->equation.color_mask = cb->attachments[i].write_mask;
+      /* Diagnostic: PANVK_FULL_MASK=1 writes all four channels of every render target. */
+      static int full_mask = -1;
+      if (full_mask < 0) {
+         const char *e = getenv("PANVK_FULL_MASK");
+         full_mask = e && e[0] == '1';
+      }
+      rt->equation.color_mask = full_mask ? 0xf : cb->attachments[i].write_mask;
 
       rt->equation.rgb_func =
          vk_blend_op_to_pipe(cb->attachments[i].color_blend_op);

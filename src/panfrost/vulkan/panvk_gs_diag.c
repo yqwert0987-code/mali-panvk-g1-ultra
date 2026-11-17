@@ -302,10 +302,13 @@ stats_init(void)
          const char *bcview = os_get_option("PANVK_BC_EMU_VIEW");
          const char *nohwr11 = os_get_option("PAN_NO_HW_R11");
          const char *nohwblend = os_get_option("PAN_NO_HW_BLEND");
+         const char *viewsw = os_get_option("PANVK_VIEW_SWIZZLE");
+         const char *fullmask = os_get_option("PANVK_FULL_MASK");
+         const char *storbgra = os_get_option("PANVK_STORAGE_BGRA");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s PANVK_VIEW_SWIZZLE=%s PANVK_FULL_MASK=%s PANVK_STORAGE_BGRA=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
                  skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)",
                  chunks ? chunks : "(unset)",
@@ -313,7 +316,8 @@ stats_init(void)
                  inflight ? inflight : "(unset)", nobc ? nobc : "(unset)",
                  bigreuse ? bigreuse : "(unset)", heaplim ? heaplim : "(unset)",
                  bcview ? bcview : "(unset)", nohwr11 ? nohwr11 : "(unset)",
-                 nohwblend ? nohwblend : "(unset)");
+                 nohwblend ? nohwblend : "(unset)", viewsw ? viewsw : "(unset)",
+                 fullmask ? fullmask : "(unset)", storbgra ? storbgra : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;
