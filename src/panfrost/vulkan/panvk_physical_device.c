@@ -277,9 +277,19 @@ get_device_heaps(struct panvk_physical_device *device,
    int host_coherent_not_cached_idx = -1;
    int host_cached_not_coherent_idx = -1;
 
-   const uint64_t heap_size =
+   uint64_t heap_size =
       os_get_gpu_heap_size(instance->drirc.misc.heap_memory_percent,
                            &instance->drirc.misc.heap_memory_percent);
+
+   /* Diagnostic cap on the advertised heap, in MiB. The heap and budget are what a game like
+    * DXVK fills up to; on Android with no swap, filling the phone's RAM gets the process
+    * killed. PANVK_HEAP_LIMIT_MIB=4096 makes the game see a 4 GiB heap. */
+   const char *limit_env = getenv("PANVK_HEAP_LIMIT_MIB");
+   if (limit_env) {
+      const uint64_t limit = (uint64_t)strtoull(limit_env, NULL, 10) << 20;
+      if (limit && limit < heap_size)
+         heap_size = limit;
+   }
 
    device->memory.heap_count = 1;
    device->memory.heaps[0] = (VkMemoryHeap){
