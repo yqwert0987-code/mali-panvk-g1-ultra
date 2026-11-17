@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
+
 #include "genxml/decode.h"
 
 #include "vulkan/util/vk_util.h"
@@ -72,6 +74,23 @@ panvk_AllocateMemory(VkDevice _device,
 
    const VkMemoryType *type =
       &physical_device->memory.types[pAllocateInfo->memoryTypeIndex];
+
+   /* PANVK_HEAP_LIMIT_MIB also refuses allocations that would take the live total past the
+    * limit, as a card with that much memory would, so the game frees caches instead of
+    * filling the phone's RAM. Exports and imports (swapchain images) are exempt. */
+   {
+      static int64_t limit = -1;
+      if (limit < 0) {
+         const char *e = getenv("PANVK_HEAP_LIMIT_MIB");
+         limit = e ? (int64_t)strtoull(e, NULL, 10) << 20 : 0;
+      }
+      if (limit > 0 &&
+          !vk_find_struct_const(pAllocateInfo->pNext, EXPORT_MEMORY_ALLOCATE_INFO) &&
+          !vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_FD_INFO_KHR) &&
+          (int64_t)p_atomic_read(&physical_device->memory.heap_used) +
+                (int64_t)pAllocateInfo->allocationSize > limit)
+         return panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+   }
 
    const VkExportMemoryAllocateInfo *export_info =
       vk_find_struct_const(pAllocateInfo->pNext, EXPORT_MEMORY_ALLOCATE_INFO);
