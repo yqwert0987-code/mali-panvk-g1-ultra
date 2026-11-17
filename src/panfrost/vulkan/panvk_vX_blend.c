@@ -18,6 +18,7 @@
 #include "panvk_blend.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_device.h"
+#include "panvk_gs_diag.h"
 #include "panvk_meta.h"
 #include "panvk_shader.h"
 
@@ -362,7 +363,14 @@ panvk_per_arch(blend_emit_descs)(struct panvk_cmd_buffer *cmdbuf,
 
       blend_info->any_dest_read |= pan_blend_reads_dest(rt->equation);
 
-      if (blend_needs_shader(&bs, i, &ff_blend_constant)) {
+      const bool diag_needs_shader = blend_needs_shader(&bs, i, &ff_blend_constant);
+      panvk_gs_diag_blend(color_attachment_formats[i], rt->equation.blend_enable,
+                          rt->equation.rgb_func, rt->equation.rgb_src_factor,
+                          rt->equation.rgb_dst_factor, rt->equation.alpha_func,
+                          rt->equation.alpha_src_factor, rt->equation.alpha_dst_factor,
+                          rt->equation.color_mask, diag_needs_shader);
+
+      if (diag_needs_shader) {
          nir_alu_type src0_type = fs_info->bifrost.blend[loc].type;
          nir_alu_type src1_type = fs_info->bifrost.blend_src1_type;
 

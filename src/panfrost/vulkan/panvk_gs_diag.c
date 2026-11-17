@@ -301,17 +301,19 @@ stats_init(void)
          const char *heaplim = os_get_option("PANVK_HEAP_LIMIT_MIB");
          const char *bcview = os_get_option("PANVK_BC_EMU_VIEW");
          const char *nohwr11 = os_get_option("PAN_NO_HW_R11");
+         const char *nohwblend = os_get_option("PAN_NO_HW_BLEND");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
                  skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)",
                  chunks ? chunks : "(unset)",
                  level ? level : "(unset)", clear ? clear : "(unset)",
                  inflight ? inflight : "(unset)", nobc ? nobc : "(unset)",
                  bigreuse ? bigreuse : "(unset)", heaplim ? heaplim : "(unset)",
-                 bcview ? bcview : "(unset)", nohwr11 ? nohwr11 : "(unset)");
+                 bcview ? bcview : "(unset)", nohwr11 ? nohwr11 : "(unset)",
+                 nohwblend ? nohwblend : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;
@@ -472,7 +474,7 @@ panvk_gs_diag_rt(unsigned kind, unsigned vk_format, unsigned width, unsigned hei
 {
    static struct {
       unsigned kind, fmt, w, h;
-   } seen[64];
+   } seen[256];
    static unsigned count;
 
    if (!stats_file)
@@ -490,7 +492,47 @@ panvk_gs_diag_rt(unsigned kind, unsigned vk_format, unsigned width, unsigned hei
    seen[count].h = height;
    count++;
    diag_logf("gs-diag: render target #%u: %s vk_format=%u %ux%u", count,
-             kind ? "depth" : "colour", vk_format, width, height);
+             kind == 0 ? "colour" : kind == 1 ? "depth" : "storage", vk_format, width, height);
+}
+
+void
+panvk_gs_diag_blend(unsigned vk_format, unsigned blend_enable, unsigned rgb_func,
+                    unsigned rgb_src, unsigned rgb_dst, unsigned a_func, unsigned a_src,
+                    unsigned a_dst, unsigned color_mask, unsigned path)
+{
+   static struct {
+      uint32_t fmt, words[3];
+   } seen[256];
+   static unsigned count;
+
+   if (!stats_file)
+      return;
+
+   const uint32_t w0 = blend_enable | (rgb_func << 1) | (rgb_src << 4) | (rgb_dst << 9) |
+                       (path << 14) | (color_mask << 15);
+   const uint32_t w1 = a_func | (a_src << 3) | (a_dst << 8);
+
+   pthread_mutex_lock(&stats_lock);
+   for (unsigned i = 0; i < count; i++) {
+      if (seen[i].fmt == vk_format && seen[i].words[0] == w0 && seen[i].words[1] == w1) {
+         pthread_mutex_unlock(&stats_lock);
+         return;
+      }
+   }
+   if (count >= ARRAY_SIZE(seen)) {
+      pthread_mutex_unlock(&stats_lock);
+      return;
+   }
+   seen[count].fmt = vk_format;
+   seen[count].words[0] = w0;
+   seen[count].words[1] = w1;
+   count++;
+   pthread_mutex_unlock(&stats_lock);
+
+   diag_logf("gs-diag: blend #%u: vk_format=%u enable=%u rgb=%u(%u,%u) alpha=%u(%u,%u) "
+             "mask=0x%x path=%s",
+             count, vk_format, blend_enable, rgb_func, rgb_src, rgb_dst, a_func, a_src, a_dst,
+             color_mask, path ? "blend-shader" : "fixed-function");
 }
 
 void

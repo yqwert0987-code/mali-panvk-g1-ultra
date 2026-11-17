@@ -376,15 +376,48 @@ GENX(pan_format_from_pipe_format)(enum pipe_format f)
 static inline const struct pan_blendable_format *
 GENX(pan_blendable_format_from_pipe_format)(enum pipe_format f)
 {
-   /* Diagnostic: PAN_NO_HW_R11=1 treats R11G11B10_FLOAT as not blendable in hardware, so it
-    * goes through the software pack/unpack path instead. */
-   if (f == PIPE_FORMAT_R11G11B10_FLOAT) {
-      static int no_hw = -1;
-      if (no_hw < 0) {
-         const char *e = getenv("PAN_NO_HW_R11");
-         no_hw = e && e[0] == '1';
+   /* Diagnostic: PAN_NO_HW_BLEND=<mask> treats format classes as not blendable in hardware, so
+    * they go through the software pack/unpack path (blend shaders) instead. Bits: 1 =
+    * R11G11B10_FLOAT, 2 = 16-bit float, 4 = 10-bit RGB10_A2, 8 = 8-bit RGBA/BGRA (incl. sRGB).
+    * PAN_NO_HW_R11=1 is the same as mask 1. Unset: no effect. */
+   static int no_hw_init;
+   static unsigned no_hw_mask;
+   if (!no_hw_init) {
+      const char *e = getenv("PAN_NO_HW_BLEND");
+      const char *r = getenv("PAN_NO_HW_R11");
+      no_hw_mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
+      if (r && r[0] == '1')
+         no_hw_mask |= 1;
+      no_hw_init = 1;
+   }
+   if (no_hw_mask) {
+      unsigned bit = 0;
+      switch (f) {
+      case PIPE_FORMAT_R11G11B10_FLOAT:
+         bit = 1;
+         break;
+      case PIPE_FORMAT_R16_FLOAT:
+      case PIPE_FORMAT_R16G16_FLOAT:
+      case PIPE_FORMAT_R16G16B16A16_FLOAT:
+      case PIPE_FORMAT_R16G16B16X16_FLOAT:
+         bit = 2;
+         break;
+      case PIPE_FORMAT_R10G10B10A2_UNORM:
+      case PIPE_FORMAT_B10G10R10A2_UNORM:
+      case PIPE_FORMAT_R10G10B10X2_UNORM:
+      case PIPE_FORMAT_B10G10R10X2_UNORM:
+         bit = 4;
+         break;
+      case PIPE_FORMAT_R8G8B8A8_UNORM:
+      case PIPE_FORMAT_R8G8B8A8_SRGB:
+      case PIPE_FORMAT_B8G8R8A8_UNORM:
+      case PIPE_FORMAT_B8G8R8A8_SRGB:
+         bit = 8;
+         break;
+      default:
+         break;
       }
-      if (no_hw) {
+      if (no_hw_mask & bit) {
          static const struct pan_blendable_format none;
          return &none;
       }

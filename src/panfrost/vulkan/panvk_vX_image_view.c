@@ -21,6 +21,7 @@
 #include "panvk_bc_emu.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
+#include "panvk_gs_diag.h"
 #include "panvk_image.h"
 #include "panvk_image_view.h"
 #include "panvk_priv_bo.h"
@@ -511,6 +512,9 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
    if (view->vk.usage & VK_IMAGE_USAGE_STORAGE_BIT)
       prepare_attr_buf_descs(view);
 #endif
+
+   if (view->vk.usage & VK_IMAGE_USAGE_STORAGE_BIT)
+      panvk_gs_diag_rt(2, view->vk.view_format, view->vk.extent.width, view->vk.extent.height);
 
    if (view->vk.image->create_flags &
        VK_IMAGE_CREATE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_BIT_EXT)

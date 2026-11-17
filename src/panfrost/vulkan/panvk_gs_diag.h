@@ -184,7 +184,16 @@ void panvk_gs_diag_wls(uint64_t bytes, uint32_t wls_size, uint32_t instances, ui
 void panvk_gs_diag_tls(uint64_t bytes, uint32_t tls_size, uint32_t threads_per_core,
                        uint32_t core_range);
 
-/* Logs each distinct (kind, format, size) render target once; kind 0 = colour, 1 = depth. */
+/* Logs each distinct (kind, format, size) once; kind 0 = colour render target, 1 = depth render
+ * target, 2 = storage image view. */
 void panvk_gs_diag_rt(unsigned kind, unsigned vk_format, unsigned width, unsigned height);
+
+/* Logs each distinct (vk_format, blend equation, write mask, path) once, as the blend descriptor
+ * of a draw is built. path: 0 = fixed function or opaque, 1 = blend shader. The factors and
+ * functions are the pipe_blend_func / pipe_blendfactor values (PIPE_BLEND_ADD = 0, PIPE_BLENDFACTOR_ONE
+ * = 1, _SRC_COLOR = 2, _SRC_ALPHA = 3, _DST_ALPHA = 4, _DST_COLOR = 5, ..., _ZERO = 0x11). */
+void panvk_gs_diag_blend(unsigned vk_format, unsigned blend_enable, unsigned rgb_func,
+                         unsigned rgb_src, unsigned rgb_dst, unsigned a_func, unsigned a_src,
+                         unsigned a_dst, unsigned color_mask, unsigned path);
 
 #endif
