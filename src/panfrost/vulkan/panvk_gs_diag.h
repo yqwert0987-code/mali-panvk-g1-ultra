@@ -184,4 +184,7 @@ void panvk_gs_diag_wls(uint64_t bytes, uint32_t wls_size, uint32_t instances, ui
 void panvk_gs_diag_tls(uint64_t bytes, uint32_t tls_size, uint32_t threads_per_core,
                        uint32_t core_range);
 
+/* Logs each distinct (kind, format, size) render target once; kind 0 = colour, 1 = depth. */
+void panvk_gs_diag_rt(unsigned kind, unsigned vk_format, unsigned width, unsigned height);
+
 #endif

@@ -467,6 +467,32 @@ panvk_gs_diag_tls(uint64_t bytes, uint32_t tls_size, uint32_t threads_per_core, 
 }
 
 void
+panvk_gs_diag_rt(unsigned kind, unsigned vk_format, unsigned width, unsigned height)
+{
+   static struct {
+      unsigned kind, fmt, w, h;
+   } seen[64];
+   static unsigned count;
+
+   if (!stats_file)
+      return;
+   for (unsigned i = 0; i < count; i++) {
+      if (seen[i].kind == kind && seen[i].fmt == vk_format && seen[i].w == width &&
+          seen[i].h == height)
+         return;
+   }
+   if (count >= ARRAY_SIZE(seen))
+      return;
+   seen[count].kind = kind;
+   seen[count].fmt = vk_format;
+   seen[count].w = width;
+   seen[count].h = height;
+   count++;
+   diag_logf("gs-diag: render target #%u: %s vk_format=%u %ux%u", count,
+             kind ? "depth" : "colour", vk_format, width, height);
+}
+
+void
 panvk_stat_add(enum panvk_stat stat, uint64_t n)
 {
    stat_add(stat, n);

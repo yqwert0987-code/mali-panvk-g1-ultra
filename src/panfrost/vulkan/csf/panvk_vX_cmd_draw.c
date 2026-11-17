@@ -5179,6 +5179,20 @@ panvk_per_arch(CmdBeginRendering)(VkCommandBuffer commandBuffer,
 
    bool resuming = pRenderingInfo->flags & VK_RENDERING_RESUMING_BIT;
 
+   /* Stats only: each distinct render target format and size is logged once. */
+   for (uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; i++) {
+      VK_FROM_HANDLE(panvk_image_view, rt_view, pRenderingInfo->pColorAttachments[i].imageView);
+      if (rt_view)
+         panvk_gs_diag_rt(0, rt_view->vk.view_format, rt_view->vk.extent.width,
+                          rt_view->vk.extent.height);
+   }
+   if (pRenderingInfo->pDepthAttachment) {
+      VK_FROM_HANDLE(panvk_image_view, rt_view, pRenderingInfo->pDepthAttachment->imageView);
+      if (rt_view)
+         panvk_gs_diag_rt(1, rt_view->vk.view_format, rt_view->vk.extent.width,
+                          rt_view->vk.extent.height);
+   }
+
    panvk_per_arch(cmd_init_render_state)(cmdbuf, pRenderingInfo);
 
    /* Renderpass lowering can fold an initial layout transition into
