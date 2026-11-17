@@ -10,6 +10,8 @@
 #ifndef __PAN_FORMAT_H
 #define __PAN_FORMAT_H
 
+#include <stdlib.h>
+
 #include "genxml/gen_macros.h"
 
 #include "util/format/u_format.h"
@@ -374,6 +376,19 @@ GENX(pan_format_from_pipe_format)(enum pipe_format f)
 static inline const struct pan_blendable_format *
 GENX(pan_blendable_format_from_pipe_format)(enum pipe_format f)
 {
+   /* Diagnostic: PAN_NO_HW_R11=1 treats R11G11B10_FLOAT as not blendable in hardware, so it
+    * goes through the software pack/unpack path instead. */
+   if (f == PIPE_FORMAT_R11G11B10_FLOAT) {
+      static int no_hw = -1;
+      if (no_hw < 0) {
+         const char *e = getenv("PAN_NO_HW_R11");
+         no_hw = e && e[0] == '1';
+      }
+      if (no_hw) {
+         static const struct pan_blendable_format none;
+         return &none;
+      }
+   }
    return &GENX(pan_blendable_formats)[f];
 }
 
@@ -384,7 +399,8 @@ GENX(pan_dithered_format_from_pipe_format)(enum pipe_format f, bool dithered)
    if (pan_format_is_yuv(f))
       f = pan_yuv_rt_internal_format(f);
 
-   mali_pixel_format pixfmt = GENX(pan_blendable_formats)[f].bifrost[dithered];
+   mali_pixel_format pixfmt =
+      GENX(pan_blendable_format_from_pipe_format)(f)->bifrost[dithered];
 
    /* Formats requiring blend shaders are stored raw in the tilebuffer and will
     * have 0 as their pixel format. Assumes dithering is set, I don't know of a
