@@ -13,7 +13,7 @@
 
 #define PAN_MAX_SPILL_BATCH 32
 
-DEBUG_GET_ONCE_NUM_OPTION(ra_spill_batch, "PAN_RA_SPILL_BATCH", 8)
+DEBUG_GET_ONCE_NUM_OPTION(ra_spill_batch, "PAN_RA_SPILL_BATCH", 1)
 
 struct lcra_state {
    unsigned node_count;

@@ -64,6 +64,6 @@ PANVK_GS_VS_ONLY_INSTANCES=64, PANVK_TILER_MAX_CHUNKS=256.
 Sekiro spent ~92 s compiling shaders before gameplay. Per-phase timing (stats file "slow compile
 detail" lines) showed ~99% of the time in register allocation: shaders needing ~100 spills ran
 ~100 full interference passes (an 11412-instruction compute shader: 13 s, compiled 5-7 times).
-Spilling up to 8 values per failed attempt (PAN_RA_SPILL_BATCH, default now 8, 1 = old
+Spilling up to 8 values per failed attempt (PAN_RA_SPILL_BATCH=8; default is 1 = old
 behaviour) cut total compile time to ~37 s and that shader to ~2.6-3.2 s, spill memory +4%
 (1840 -> 1920 bytes). Remaining: the same shader is still compiled repeatedly (no cache hit).
