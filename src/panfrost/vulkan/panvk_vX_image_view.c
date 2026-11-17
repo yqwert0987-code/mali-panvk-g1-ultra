@@ -11,6 +11,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "vk_format.h"
 #include "vk_log.h"
 #include "vk_ycbcr_conversion.h"
@@ -421,6 +424,32 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
       unsigned char app[4];
       memcpy(app, view->pview.swizzle, sizeof(app));
       util_format_compose_swizzles(a001, app, view->pview.swizzle);
+   }
+
+   if (bc_emu_view && !bc_emu_alpha) {
+      /* Diagnostic only: PANVK_BC_EMU_VIEW=rb swaps red and blue, =a1 forces alpha to 1, =r001/=g
+       * show a single channel. Off by default. */
+      static const char *mode;
+      static bool mode_init;
+      if (!mode_init) {
+         mode = getenv("PANVK_BC_EMU_VIEW");
+         mode_init = true;
+      }
+      if (mode) {
+         unsigned char *sw = view->pview.swizzle;
+         if (!strcmp(mode, "rb")) {
+            unsigned char t = sw[0];
+            sw[0] = sw[2];
+            sw[2] = t;
+         } else if (!strcmp(mode, "a1")) {
+            sw[3] = PIPE_SWIZZLE_1;
+         } else if (!strcmp(mode, "gbr")) {
+            unsigned char r = sw[0], g = sw[1], b = sw[2];
+            sw[0] = g;
+            sw[1] = b;
+            sw[2] = r;
+         }
+      }
    }
 
    u_foreach_bit(aspect_bit, view->vk.aspects) {
