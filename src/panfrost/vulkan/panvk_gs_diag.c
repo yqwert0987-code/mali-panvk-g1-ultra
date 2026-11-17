@@ -582,3 +582,20 @@ panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t instrs
              (unsigned long long)(backend_ns / 1000000), bin_bytes, buf, counters[0], counters[1],
              counters[2], counters[3]);
 }
+
+void
+panvk_gs_diag_heap_refused(uint64_t size, uint64_t live, uint64_t limit)
+{
+   static unsigned count;
+   unsigned n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+
+   if (n > 20 && (n & (n - 1)))
+      return;
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (stats_file)
+      diag_logf("gs-diag: vkAllocateMemory refused #%u: %llu MiB requested, %llu MiB live, "
+                "limit %llu MiB (PANVK_HEAP_LIMIT_MIB)",
+                n, (unsigned long long)(size >> 20), (unsigned long long)(live >> 20),
+                (unsigned long long)(limit >> 20));
+}

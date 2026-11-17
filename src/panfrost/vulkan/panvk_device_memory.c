@@ -88,8 +88,12 @@ panvk_AllocateMemory(VkDevice _device,
           !vk_find_struct_const(pAllocateInfo->pNext, EXPORT_MEMORY_ALLOCATE_INFO) &&
           !vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_FD_INFO_KHR) &&
           (int64_t)p_atomic_read(&physical_device->memory.heap_used) +
-                (int64_t)pAllocateInfo->allocationSize > limit)
+                (int64_t)pAllocateInfo->allocationSize > limit) {
+         panvk_gs_diag_heap_refused(pAllocateInfo->allocationSize,
+                                    p_atomic_read(&physical_device->memory.heap_used),
+                                    (uint64_t)limit);
          return panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+      }
    }
 
    const VkExportMemoryAllocateInfo *export_info =

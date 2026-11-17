@@ -97,6 +97,10 @@ void panvk_gs_diag_compile_phases(uint32_t stage, uint32_t instrs_in, uint32_t i
                                   uint64_t postprocess_ns, uint64_t backend_ns, uint32_t bin_bytes,
                                   const uint64_t *phase_ns, const uint32_t *counters);
 
+/* vkAllocateMemory refused because of PANVK_HEAP_LIMIT_MIB. Logged (first 20, then powers of
+ * two) so a game dying right after shows up as the cause. */
+void panvk_gs_diag_heap_refused(uint64_t size, uint64_t live, uint64_t limit);
+
 /* A block-compression image the driver emulates (hidden second plane, transcoded after copies):
  * logs the first ones, and a count of all, to the stats file. */
 void panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_t h,
