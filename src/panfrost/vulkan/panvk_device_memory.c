@@ -244,6 +244,12 @@ panvk_AllocateMemory(VkDevice _device,
    p_atomic_add(&physical_device->memory.heap_used,
                 (uint64_t)pan_kmod_bo_size(mem->bo));
 
+   panvk_gs_diag_big_alloc(pan_kmod_bo_size(mem->bo),
+                           p_atomic_read(&physical_device->memory.heap_used),
+                           pAllocateInfo->memoryTypeIndex,
+                           vk_find_struct_const(pAllocateInfo->pNext,
+                                                MEMORY_DEDICATED_ALLOCATE_INFO) != NULL);
+
    *pMem = panvk_device_memory_to_handle(mem);
 
    return VK_SUCCESS;

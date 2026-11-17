@@ -599,3 +599,21 @@ panvk_gs_diag_heap_refused(uint64_t size, uint64_t live, uint64_t limit)
                 n, (unsigned long long)(size >> 20), (unsigned long long)(live >> 20),
                 (unsigned long long)(limit >> 20));
 }
+
+void
+panvk_gs_diag_big_alloc(uint64_t size, uint64_t live_after, uint32_t type, bool dedicated)
+{
+   static unsigned count;
+
+   if (size < (64ull << 20))
+      return;
+   unsigned n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+   if (n > 100 && n % 10)
+      return;
+   if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
+      stats_init();
+   if (stats_file)
+      diag_logf("gs-diag: big allocation #%u: %llu MiB type %u%s, %llu MiB live after", n,
+                (unsigned long long)(size >> 20), type, dedicated ? " dedicated" : "",
+                (unsigned long long)(live_after >> 20));
+}
