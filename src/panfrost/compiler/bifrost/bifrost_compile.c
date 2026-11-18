@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
 #include "compiler/nir/nir_builder.h"
 #include "panfrost/compiler/pan_compiler.h"
 #include "util/u_hexdump.h"
@@ -4231,6 +4232,24 @@ compare_u32(const void* a, const void* b, void* _)
    return (va < vb) - (va > vb);
 }
 
+/* Diagnostic: PAN_BI_SKIP=<mask> disables individual BIR optimisation passes to bisect a
+ * miscompile. 1 push_ubo, 2 copy_prop+constant_fold, 4 mod_prop_forward, 8 mod_prop_backward,
+ * 16 cse, 32 reorder_push, 64 fuse_dual_texture, 128 post_ra, 256 va_optimize. */
+static unsigned
+bi_skip_mask(void)
+{
+   static unsigned mask;
+   static bool init;
+   if (!init) {
+      const char *e = getenv("PAN_BI_SKIP");
+      mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
+      init = true;
+   }
+   return mask;
+}
+#define BI_SKIP(bit) (bi_skip_mask() & (bit))
+
+
 static bi_context *
 bi_compile_variant_nir(nir_shader *nir,
                        const struct pan_compile_inputs *inputs,
@@ -4335,18 +4354,22 @@ bi_compile_variant_nir(nir_shader *nir,
    bi_validate(ctx, "Early lowering");
 
    /* Runs before copy prop */
-   if (optimize && ctx->inputs->fau.pushable_ubos) {
+   if (optimize && !BI_SKIP(1) && ctx->inputs->fau.pushable_ubos) {
       bi_opt_push_ubo(ctx);
    }
 
    if (likely(optimize)) {
-      bi_opt_copy_prop(ctx);
-
-      while (bi_opt_constant_fold(ctx))
+      if (!BI_SKIP(2)) {
          bi_opt_copy_prop(ctx);
 
-      bi_opt_mod_prop_forward(ctx);
-      bi_opt_mod_prop_backward(ctx);
+         while (bi_opt_constant_fold(ctx))
+            bi_opt_copy_prop(ctx);
+      }
+
+      if (!BI_SKIP(4))
+         bi_opt_mod_prop_forward(ctx);
+      if (!BI_SKIP(8))
+         bi_opt_mod_prop_backward(ctx);
 
       /* Push LD_VAR_IMM/VAR_TEX instructions. Must run after
        * mod_prop_backward to fuse VAR_TEX */
@@ -4354,13 +4377,15 @@ bi_compile_variant_nir(nir_shader *nir,
           !(bifrost_debug & BIFROST_DBG_NOPRELOAD)) {
          bi_opt_dce(ctx, false);
          bi_opt_message_preload(ctx);
-         bi_opt_copy_prop(ctx);
+         if (!BI_SKIP(2))
+            bi_opt_copy_prop(ctx);
       }
 
       bi_opt_dce(ctx, false);
-      bi_opt_cse(ctx);
+      if (!BI_SKIP(16))
+         bi_opt_cse(ctx);
       bi_opt_dce(ctx, false);
-      if (ctx->inputs->fau.pushable_ubos)
+      if (ctx->inputs->fau.pushable_ubos && !BI_SKIP(32))
          bi_opt_reorder_push(ctx);
       bi_validate(ctx, "Optimization passes");
    }
@@ -4371,7 +4396,8 @@ bi_compile_variant_nir(nir_shader *nir,
 
    if (ctx->arch >= 9) {
       va_lower_isel(ctx);
-      va_optimize(ctx);
+      if (!BI_SKIP(256))
+         va_optimize(ctx);
 
       /* Count how often a specific constant appears. */
       struct hash_table_u64 *const_hist = _mesa_hash_table_u64_create(ctx);
@@ -4416,7 +4442,8 @@ bi_compile_variant_nir(nir_shader *nir,
 
       /* We need to clean up after constant lowering */
       if (likely(optimize)) {
-         bi_opt_cse(ctx);
+         if (!BI_SKIP(16))
+            bi_opt_cse(ctx);
          bi_opt_dce(ctx, false);
       }
 
@@ -4443,7 +4470,7 @@ bi_compile_variant_nir(nir_shader *nir,
 
    /* Fuse TEXC after analyzing helper requirements so the analysis
     * doesn't have to know about dual textures */
-   if (likely(optimize)) {
+   if (likely(optimize) && !BI_SKIP(64)) {
       bi_opt_fuse_dual_texture(ctx);
    }
 
@@ -4456,7 +4483,8 @@ bi_compile_variant_nir(nir_shader *nir,
 
    /* Lowering FAU can create redundant moves. Run CSE+DCE to clean up. */
    if (likely(optimize)) {
-      bi_opt_cse(ctx);
+      if (!BI_SKIP(16))
+         bi_opt_cse(ctx);
       bi_opt_dce(ctx, false);
    }
 
@@ -4475,7 +4503,7 @@ bi_compile_variant_nir(nir_shader *nir,
    bi_register_allocate(ctx);
    pan_phase_mark(PAN_PHASE_RA);
 
-   if (likely(optimize))
+   if (likely(optimize) && !BI_SKIP(128))
       bi_opt_post_ra(ctx);
 
    if (bifrost_debug & BIFROST_DBG_SHADERS && !skip_internal)
