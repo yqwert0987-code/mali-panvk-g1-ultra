@@ -8,6 +8,7 @@
 #include "compiler.h"
 #include "valhall.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 /* Diagnostic: PAN_BI_SKIP bits 512 (small int -> f32 fusion), 1024 (fabsneg fusion) and
@@ -198,6 +199,44 @@ bi_fuse_small_int_to_f32(bi_context *ctx, bi_instr *I, bi_instr *mod)
    }
 }
 
+/* Diagnostic: PAN_BI_FUSELOG=<path> appends one line per distinct fabsneg fusion (consumer opcode,
+ * source index, modifiers, swizzles, shader stage). */
+static void
+bi_fuse_log(bi_context *ctx, bi_instr *I, bi_instr *mod, unsigned s)
+{
+   static const char *path;
+   static bool init;
+   static unsigned long long seen[512];
+   static unsigned nseen;
+   if (!init) {
+      path = getenv("PAN_BI_FUSELOG");
+      init = true;
+   }
+   if (!path)
+      return;
+
+   const bi_index o = I->src[s], r = mod->src[0];
+   unsigned long long key = ((unsigned long long)I->op << 40) | ((unsigned long long)s << 36) |
+                            ((unsigned long long)mod->op << 24) | (o.neg << 23) | (o.abs << 22) |
+                            (r.neg << 21) | (r.abs << 20) | ((unsigned)o.swizzle << 12) |
+                            ((unsigned)r.swizzle << 4) | (unsigned)ctx->stage;
+   for (unsigned i = 0; i < nseen; i++)
+      if (seen[i] == key)
+         return;
+   if (nseen >= ARRAY_SIZE(seen))
+      return;
+   seen[nseen++] = key;
+
+   FILE *f = fopen(path, "a");
+   if (!f)
+      return;
+   fprintf(f, "fuse: use=%s src%u size=%u  mod=%s  use_mod(neg=%d abs=%d swz=%d)  mod_src(neg=%d abs=%d swz=%d)  stage=%d arch=%u\n",
+           bi_get_opcode_props(I)->name, s, bi_get_opcode_props(I)->size,
+           bi_get_opcode_props(mod)->name, o.neg, o.abs, o.swizzle, r.neg, r.abs, r.swizzle,
+           ctx->stage, ctx->arch);
+   fclose(f);
+}
+
 void
 bi_opt_mod_prop_forward(bi_context *ctx)
 {
@@ -239,6 +278,7 @@ bi_opt_mod_prop_forward(bi_context *ctx)
             if (mod->src[0].neg && !bi_takes_fneg(ctx->arch, I, s))
                continue;
 
+            bi_fuse_log(ctx, I, mod, s);
             I->src[s] = bi_compose_float_index(I->src[s], mod->src[0]);
          }
       }
