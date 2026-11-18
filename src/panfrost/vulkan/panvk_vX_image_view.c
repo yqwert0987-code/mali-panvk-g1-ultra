@@ -72,7 +72,8 @@ panvk_storage_pview(const struct panvk_image_view *view,
 
 /* Diagnostic: PANVK_VIEW_SWIZZLE="<vk_format>:<4 chars>[,<vk_format>:<4 chars>...]" re-swizzles
  * sampled views of that VkFormat, e.g. "122:rg01" zeroes the blue channel of every
- * B10G11R11_UFLOAT view. Chars: r g b a 0 1 (r, g, b, a pick from the view's own channels).
+ * B10G11R11_UFLOAT view. Emulated BC views match their BC format (133, 145, 143), not the
+ * carrier they are sampled as (157, 153, 97). Chars: r g b a 0 1 (r, g, b, a pick from the view's own channels).
  * Unset: no effect. */
 static void
 panvk_diag_view_swizzle(unsigned vk_format, unsigned char sw[4])
@@ -414,6 +415,9 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
     * hidden plane 1 in its carrier format. The transcoder's storage view names PLANE_1 itself; when
     * the carrier is not block-compressed, that view is in texels rather than blocks. */
    bool bc_emu_view = false, bc_emu_alpha = false;
+   /* The format PANVK_VIEW_SWIZZLE matches: the format the application asked for, before an
+    * emulated BC view is switched to its carrier format. */
+   const VkFormat diag_swizzle_format = view->vk.view_format;
    const struct panvk_physical_device *bc_pdev = to_panvk_physical_device(device->vk.physical);
    if (panvk_bc_emu_format(bc_pdev, image->vk.format)) {
       const VkFormat carrier = panvk_bc_emu_carrier(bc_pdev, view->vk.view_format);
@@ -481,7 +485,7 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
       }
    }
    vk_component_mapping_to_pipe_swizzle(view->vk.swizzle, view->pview.swizzle);
-   panvk_diag_view_swizzle(view->vk.view_format, view->pview.swizzle);
+   panvk_diag_view_swizzle(diag_swizzle_format, view->pview.swizzle);
    if (bc_emu_alpha) {
       /* BC4 rides in BC3's alpha half: (A, 0, 0, 1) under the view's own swizzle. */
       static const unsigned char a001[4] = {PIPE_SWIZZLE_W, PIPE_SWIZZLE_0, PIPE_SWIZZLE_0,
