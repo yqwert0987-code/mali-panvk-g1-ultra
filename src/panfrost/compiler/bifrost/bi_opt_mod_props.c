@@ -8,6 +8,23 @@
 #include "compiler.h"
 #include "valhall.h"
 
+#include <stdlib.h>
+
+/* Diagnostic: PAN_BI_SKIP bits 512 (small int -> f32 fusion), 1024 (fabsneg fusion) and
+ * 2048 (DISCARD+FCMP fusion) disable the three parts of the forward pass individually. */
+static bool
+bi_fwd_skip(unsigned bit)
+{
+   static unsigned mask;
+   static bool init;
+   if (!init) {
+      const char *e = getenv("PAN_BI_SKIP");
+      mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
+      init = true;
+   }
+   return mask & bit;
+}
+
 /*
  * Due to a Bifrost encoding restriction, some instructions cannot have an abs
  * modifier on both sources. Check if adding a fabs modifier to a given source
@@ -192,7 +209,7 @@ bi_opt_mod_prop_forward(bi_context *ctx)
        * involved in, this shortcircuits other processing.
        */
       if (I->op == BI_OPCODE_DISCARD_B32) {
-         if (bi_is_ssa(I->src[0]) &&
+         if (!bi_fwd_skip(2048) && bi_is_ssa(I->src[0]) &&
              bi_fuse_discard_fcmp(ctx, I, lut[I->src[0].value])) {
             bi_remove_instruction(I);
          }
@@ -212,9 +229,10 @@ bi_opt_mod_prop_forward(bi_context *ctx)
 
          unsigned size = bi_get_opcode_props(I)->size;
 
-         bi_fuse_small_int_to_f32(ctx, I, mod);
+         if (!bi_fwd_skip(512))
+            bi_fuse_small_int_to_f32(ctx, I, mod);
 
-         if (bi_is_fabsneg(mod->op, size)) {
+         if (!bi_fwd_skip(1024) && bi_is_fabsneg(mod->op, size)) {
             if (mod->src[0].abs && !bi_takes_fabs(ctx->arch, I, mod->src[0], s))
                continue;
 
