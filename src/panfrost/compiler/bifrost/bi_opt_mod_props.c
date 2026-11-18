@@ -199,6 +199,57 @@ bi_fuse_small_int_to_f32(bi_context *ctx, bi_instr *I, bi_instr *mod)
    }
 }
 
+/* Diagnostic: PAN_BI_NOFUSE=<mask> stops the fabsneg fusion into whole groups of consumers:
+ * 1 FROUND, 2 FRCP/FRSQ, 4 FMA_RSCALE/FADD_LSCALE/FADD_RSCALE, 8 FMIN/FMAX/FCMP,
+ * 16 FABSNEG chains, 32 FADD, 64 FMA. */
+static bool
+bi_nofuse_group(const bi_instr *I)
+{
+   static unsigned mask;
+   static bool init;
+   if (!init) {
+      const char *e = getenv("PAN_BI_NOFUSE");
+      mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
+      init = true;
+   }
+   if (!mask)
+      return false;
+
+   switch (I->op) {
+   case BI_OPCODE_FROUND_F32:
+   case BI_OPCODE_FROUND_V2F16:
+      return mask & 1;
+   case BI_OPCODE_FRCP_F32:
+   case BI_OPCODE_FRCP_F16:
+   case BI_OPCODE_FRSQ_F32:
+   case BI_OPCODE_FRSQ_F16:
+      return mask & 2;
+   case BI_OPCODE_FMA_RSCALE_F32:
+   case BI_OPCODE_FMA_RSCALE_V2F16:
+   case BI_OPCODE_FADD_RSCALE_F32:
+   case BI_OPCODE_FADD_LSCALE_F32:
+      return mask & 4;
+   case BI_OPCODE_FMIN_F32:
+   case BI_OPCODE_FMAX_F32:
+   case BI_OPCODE_FCMP_F32:
+   case BI_OPCODE_FMIN_V2F16:
+   case BI_OPCODE_FMAX_V2F16:
+   case BI_OPCODE_FCMP_V2F16:
+      return mask & 8;
+   case BI_OPCODE_FABSNEG_F32:
+   case BI_OPCODE_FABSNEG_V2F16:
+      return mask & 16;
+   case BI_OPCODE_FADD_F32:
+   case BI_OPCODE_FADD_V2F16:
+      return mask & 32;
+   case BI_OPCODE_FMA_F32:
+   case BI_OPCODE_FMA_V2F16:
+      return mask & 64;
+   default:
+      return false;
+   }
+}
+
 /* Diagnostic: PAN_BI_FUSELOG=<path> appends one line per distinct fabsneg fusion (consumer opcode,
  * source index, modifiers, swizzles, shader stage). */
 static void
@@ -278,6 +329,8 @@ bi_opt_mod_prop_forward(bi_context *ctx)
             if (mod->src[0].neg && !bi_takes_fneg(ctx->arch, I, s))
                continue;
 
+            if (bi_nofuse_group(I))
+               continue;
             bi_fuse_log(ctx, I, mod, s);
             I->src[s] = bi_compose_float_index(I->src[s], mod->src[0]);
          }
