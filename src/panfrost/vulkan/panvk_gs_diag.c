@@ -591,9 +591,14 @@ panvk_gs_diag_bc_image(uint32_t vk_format, uint32_t carrier, uint32_t w, uint32_
 
    if (__atomic_load_n(&stats_mode, __ATOMIC_RELAXED) == 0)
       stats_init();
-   if (stats_file && (n <= 60 || (n & (n - 1)) == 0))
-      diag_logf("gs-diag: bc-emu image #%u: vk_format=%u carrier=%u %ux%u mips=%u layers=%u%s",
-                n, vk_format, carrier, w, h, mips, layers, linear ? " linear" : "");
+   /* Per-format count: log the first 6 images of each format and then every power of two, so
+    * formats that only show up late (BC3, sRGB) are never crowded out by the first 60 images. */
+   static unsigned fmt_count[256];
+   unsigned fn = __atomic_add_fetch(&fmt_count[vk_format & 255], 1, __ATOMIC_RELAXED);
+   if (stats_file && (fn <= 6 || (fn & (fn - 1)) == 0))
+      diag_logf("gs-diag: bc-emu image #%u: vk_format=%u (nth of fmt: %u) carrier=%u %ux%u mips=%u "
+                "layers=%u%s", n, vk_format, fn, carrier, w, h, mips, layers,
+                linear ? " linear" : "");
 }
 
 void
