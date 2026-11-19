@@ -250,6 +250,42 @@ bi_nofuse_group(const bi_instr *I)
    }
 }
 
+/* Diagnostic: PAN_BI_NOFUSE_FADD=<mask> narrows PAN_BI_NOFUSE=32 down: blocks the fusion into
+ * FADD.f32 when 1 the source is src0, 2 the source is src1, 4 the folded modifier is neg only,
+ * 8 abs only, 16 neg+abs, 32 the other FADD source is the same value as the one being folded,
+ * 64 the other FADD source is already modified (neg or abs). Any set bit that matches blocks. */
+static bool
+bi_nofuse_fadd(const bi_instr *I, const bi_instr *mod, unsigned s)
+{
+   static unsigned mask;
+   static bool init;
+   if (!init) {
+      const char *e = getenv("PAN_BI_NOFUSE_FADD");
+      mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
+      init = true;
+   }
+   if (!mask || I->op != BI_OPCODE_FADD_F32)
+      return false;
+
+   const bi_index r = mod->src[0];
+   const bi_index other = I->src[1 - s];
+   if ((mask & 1) && s == 0)
+      return true;
+   if ((mask & 2) && s == 1)
+      return true;
+   if ((mask & 4) && r.neg && !r.abs)
+      return true;
+   if ((mask & 8) && r.abs && !r.neg)
+      return true;
+   if ((mask & 16) && r.abs && r.neg)
+      return true;
+   if ((mask & 32) && bi_is_word_equiv(other, r))
+      return true;
+   if ((mask & 64) && (other.neg || other.abs))
+      return true;
+   return false;
+}
+
 /* Diagnostic: PAN_BI_FUSELOG=<path> appends one line per distinct fabsneg fusion (consumer opcode,
  * source index, modifiers, swizzles, shader stage). */
 static void
@@ -330,6 +366,8 @@ bi_opt_mod_prop_forward(bi_context *ctx)
                continue;
 
             if (bi_nofuse_group(I))
+               continue;
+            if (bi_nofuse_fadd(I, mod, s))
                continue;
             bi_fuse_log(ctx, I, mod, s);
             I->src[s] = bi_compose_float_index(I->src[s], mod->src[0]);
