@@ -201,15 +201,17 @@ bi_fuse_small_int_to_f32(bi_context *ctx, bi_instr *I, bi_instr *mod)
 
 /* Diagnostic: PAN_BI_NOFUSE=<mask> stops the fabsneg fusion into whole groups of consumers:
  * 1 FROUND, 2 FRCP/FRSQ, 4 FMA_RSCALE/FADD_LSCALE/FADD_RSCALE, 8 FMIN/FMAX/FCMP,
- * 16 FABSNEG chains, 32 FADD, 64 FMA. */
+ * 16 FABSNEG chains, 32 FADD (default), 64 FMA. */
 static bool
 bi_nofuse_group(const bi_instr *I)
 {
    static unsigned mask;
    static bool init;
    if (!init) {
+      /* Default 32: folding neg/abs into FADD.f32 miscompiles on Mali-G1 (v14), found by
+       * bisecting a wrong-colour ground in Sekiro. PAN_BI_NOFUSE=0 re-enables it. */
       const char *e = getenv("PAN_BI_NOFUSE");
-      mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
+      mask = e ? (unsigned)strtoul(e, NULL, 0) : 32;
       init = true;
    }
    if (!mask)
