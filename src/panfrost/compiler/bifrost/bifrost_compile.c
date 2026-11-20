@@ -4296,6 +4296,73 @@ bi_hash_selected(const nir_shader *nir)
 }
 
 
+/* Diagnostic: PAN_BI_TINT=<bit> makes every fragment shader output a flat
+ * colour chosen from 3 bits of its source hash (bits <bit>..<bit>+2 of the
+ * first 32-bit word; bit0 -> red, bit1 -> green, bit2 -> blue; a set bit is
+ * full intensity, a clear bit is 0.25). Lets the hash of the shader drawing a
+ * given object be read off the screen. PAN_BI_HASH_LOG=<path> appends the
+ * full hash prefix of every tinted shader. */
+static void
+bi_tint_fragment(nir_shader *nir)
+{
+   static bool init;
+   static bool enabled;
+   static unsigned bit;
+   if (!init) {
+      const char *e = getenv("PAN_BI_TINT");
+      if (e) {
+         bit = (unsigned)strtoul(e, NULL, 0);
+         enabled = bit <= 29;
+      }
+      init = true;
+   }
+
+   if (!enabled || nir->info.stage != MESA_SHADER_FRAGMENT)
+      return;
+
+   const uint8_t *h = (const uint8_t *)nir->info.source_blake3;
+   uint32_t w = (uint32_t)h[0] | ((uint32_t)h[1] << 8) |
+                ((uint32_t)h[2] << 16) | ((uint32_t)h[3] << 24);
+
+   double col[4];
+   for (unsigned i = 0; i < 3; ++i)
+      col[i] = ((w >> (bit + i)) & 1) ? 1.0 : 0.25;
+   col[3] = 1.0;
+
+   const char *log = getenv("PAN_BI_HASH_LOG");
+   if (log) {
+      FILE *f = fopen(log, "a");
+      if (f) {
+         fprintf(f, "%02x%02x%02x%02x%02x%02x%02x%02x\n", h[0], h[1], h[2],
+                 h[3], h[4], h[5], h[6], h[7]);
+         fclose(f);
+      }
+   }
+
+   nir_foreach_function_impl(impl, nir) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr(instr, block) {
+            if (instr->type != nir_instr_type_intrinsic)
+               continue;
+
+            nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+            if (intr->intrinsic != nir_intrinsic_blend_pan &&
+                intr->intrinsic != nir_intrinsic_blend2_pan)
+               continue;
+
+            nir_def *old = intr->src[2].ssa;
+            nir_builder b = nir_builder_at(nir_before_instr(instr));
+            nir_def *c[4];
+            for (unsigned i = 0; i < 4; ++i)
+               c[i] = nir_imm_floatN_t(&b, col[i], old->bit_size);
+
+            nir_src_rewrite(&intr->src[2],
+                            nir_vec(&b, c, MIN2(old->num_components, 4)));
+         }
+      }
+   }
+}
+
 static bi_context *
 bi_compile_variant_nir(nir_shader *nir,
                        const struct pan_compile_inputs *inputs,
@@ -4308,6 +4375,8 @@ bi_compile_variant_nir(nir_shader *nir,
       .bifrost = &pinfo->bifrost,
       .tls_size = pinfo->tls_size,
    };
+
+   bi_tint_fragment(nir);
 
    /* There may be another program in the dynarray, start at the end */
    unsigned offset = binary->size;
