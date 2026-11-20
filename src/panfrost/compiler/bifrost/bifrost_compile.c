@@ -4330,6 +4330,26 @@ bi_tint_fragment(nir_shader *nir)
    uint32_t w = (uint32_t)h[0] | ((uint32_t)h[1] << 8) |
                 ((uint32_t)h[2] << 16) | ((uint32_t)h[3] << 24);
 
+   /* Optional pre-filter PAN_BI_TINT_SEL=<mask>:<value>: only shaders with
+    * (hash & mask) == value are tinted. */
+   static bool sel_init;
+   static bool sel_enabled;
+   static uint32_t sel_mask, sel_value;
+   if (!sel_init) {
+      const char *s = getenv("PAN_BI_TINT_SEL");
+      if (s) {
+         char *end = NULL;
+         sel_mask = (uint32_t)strtoul(s, &end, 0);
+         if (end && *end == ':') {
+            sel_value = (uint32_t)strtoul(end + 1, NULL, 0);
+            sel_enabled = true;
+         }
+      }
+      sel_init = true;
+   }
+   if (sel_enabled && (w & sel_mask) != sel_value)
+      return;
+
    unsigned group = (w >> bit) & 3;
    if (group == 3)
       return;
