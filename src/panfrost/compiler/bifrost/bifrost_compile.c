@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include "compiler/nir/nir_builder.h"
 #include "panfrost/compiler/pan_compiler.h"
@@ -4249,6 +4250,51 @@ bi_skip_mask(void)
 }
 #define BI_SKIP(bit) (bi_skip_mask() & (bit))
 
+/* Diagnostic: PAN_BI_HASH=<mask>:<value> applies "nopsched" only to fragment
+ * shaders whose first 32 bits of source hash satisfy (hash & mask) == value.
+ * Used to bisect which shader causes a wrong-colour miscompile.
+ * PAN_BI_HASH_LOG=<path> appends the hash of each selected shader. */
+static bool
+bi_hash_selected(const nir_shader *nir)
+{
+   static bool init;
+   static bool enabled;
+   static uint32_t mask, value;
+   if (!init) {
+      const char *e = getenv("PAN_BI_HASH");
+      if (e) {
+         char *end = NULL;
+         mask = (uint32_t)strtoul(e, &end, 0);
+         if (end && *end == ':') {
+            value = (uint32_t)strtoul(end + 1, NULL, 0);
+            enabled = true;
+         }
+      }
+      init = true;
+   }
+
+   if (!enabled || nir->info.stage != MESA_SHADER_FRAGMENT)
+      return false;
+
+   const uint8_t *b = (const uint8_t *)nir->info.source_blake3;
+   uint32_t w = (uint32_t)b[0] | ((uint32_t)b[1] << 8) |
+                ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+
+   if ((w & mask) != value)
+      return false;
+
+   const char *log = getenv("PAN_BI_HASH_LOG");
+   if (log) {
+      FILE *f = fopen(log, "a");
+      if (f) {
+         fprintf(f, "%02x%02x%02x%02x%02x%02x%02x%02x\n", b[0], b[1], b[2],
+                 b[3], b[4], b[5], b[6], b[7]);
+         fclose(f);
+      }
+   }
+   return true;
+}
+
 
 static bi_context *
 bi_compile_variant_nir(nir_shader *nir,
@@ -4494,7 +4540,8 @@ bi_compile_variant_nir(nir_shader *nir,
    bi_iterator_schedule(ctx);
    pan_phase_mark(PAN_PHASE_ITER_SCHED);
 
-   if (likely(!(bifrost_debug & BIFROST_DBG_NOPSCHED))) {
+   if (likely(!(bifrost_debug & BIFROST_DBG_NOPSCHED)) &&
+       !bi_hash_selected(ctx->nir)) {
       bi_pressure_schedule(ctx);
       bi_validate(ctx, "Pre-RA scheduling");
    }
