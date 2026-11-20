@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include "compiler/nir/nir_builder.h"
 #include "panfrost/compiler/pan_compiler.h"
@@ -4296,6 +4297,39 @@ bi_hash_selected(const nir_shader *nir)
 }
 
 
+/* Diagnostic: PAN_BI_DUMP_HASH=<prefix>[,<prefix>...] with PAN_BI_DUMP_FILE=<path>
+ * appends the NIR and the post-RA BIR of every shader whose 16-digit source
+ * hash starts with one of the hex prefixes. Returns an open file or NULL. */
+static FILE *
+bi_dump_open(const nir_shader *nir)
+{
+   const char *list = getenv("PAN_BI_DUMP_HASH");
+   const char *path = getenv("PAN_BI_DUMP_FILE");
+   if (!list || !path)
+      return NULL;
+
+   const uint8_t *h = (const uint8_t *)nir->info.source_blake3;
+   char hex[17];
+   snprintf(hex, sizeof(hex), "%02x%02x%02x%02x%02x%02x%02x%02x", h[0], h[1],
+            h[2], h[3], h[4], h[5], h[6], h[7]);
+
+   const char *p = list;
+   while (*p) {
+      const char *end = strchr(p, ',');
+      size_t len = end ? (size_t)(end - p) : strlen(p);
+      if (len > 0 && len <= 16 && strncmp(hex, p, len) == 0) {
+         FILE *f = fopen(path, "a");
+         if (f)
+            fprintf(f, "\n==== shader %s ====\n", hex);
+         return f;
+      }
+      if (!end)
+         break;
+      p = end + 1;
+   }
+   return NULL;
+}
+
 /* Diagnostic: PAN_BI_TINT=<bit> splits fragment shaders into 4 groups by the
  * 2 bits <bit>,<bit>+1 of the first 32-bit word of their source hash. Group 0
  * outputs flat green, group 1 flat red, group 2 flat blue, group 3 is left
@@ -4405,6 +4439,15 @@ bi_compile_variant_nir(nir_shader *nir,
    };
 
    bi_tint_fragment(nir);
+
+   {
+      FILE *df = bi_dump_open(nir);
+      if (df) {
+         fprintf(df, "---- NIR ----\n");
+         nir_print_shader(nir, df);
+         fclose(df);
+      }
+   }
 
    /* There may be another program in the dynarray, start at the end */
    unsigned offset = binary->size;
@@ -4652,6 +4695,15 @@ bi_compile_variant_nir(nir_shader *nir,
 
    if (bifrost_debug & BIFROST_DBG_SHADERS && !skip_internal)
       bi_print_shader(ctx, stderr);
+
+   {
+      FILE *df = bi_dump_open(ctx->nir);
+      if (df) {
+         fprintf(df, "---- BIR after RA and post-RA opts ----\n");
+         bi_print_shader(ctx, df);
+         fclose(df);
+      }
+   }
 
    bi_opt_control_flow(ctx);
 
