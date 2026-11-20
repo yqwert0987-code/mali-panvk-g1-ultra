@@ -151,10 +151,14 @@ create_dag(bi_context *ctx, bi_block *block, void *memctx)
          memory_load = node;
          memory_store = node;
       }
-      if ((I->op == BI_OPCODE_PHI) ||
+   if ((I->op == BI_OPCODE_PHI) ||
           (I->op == BI_OPCODE_MOV_I32 &&
            I->src[0].type == BI_INDEX_REGISTER)) {
          preload = node;
+      }
+
+      if (I->op == BI_OPCODE_COLLECT_I32) {
+         add_dep(node, coverage);
       }
    }
 
