@@ -957,6 +957,7 @@ bi_coalesce_collects(bi_context *ctx, unsigned first_reg)
 {
    bi_instr **def = calloc(first_reg, sizeof(*def));
    BITSET_WORD *skip = BITSET_CALLOC(first_reg);
+   BITSET_WORD *skip_dest = BITSET_CALLOC(first_reg);
    bi_index *rename = calloc(first_reg, sizeof(*rename));
    bool any = false;
 
@@ -971,22 +972,30 @@ bi_coalesce_collects(bi_context *ctx, unsigned first_reg)
          if (I->dest[d].type != BI_INDEX_NORMAL || v >= first_reg)
             continue;
          if (def[v] || fixed || I->dest[d].offset || I->dest[d].memory ||
-             bi_count_write_registers(I, d) != 1)
+             bi_count_write_registers(I, d) != 1) {
             BITSET_SET(skip, v);
+            if (def[v] || I->op != BI_OPCODE_COLLECT_I32 || I->dest[d].offset ||
+                I->dest[d].memory)
+               BITSET_SET(skip_dest, v);
+         }
          def[v] = I;
       }
 
       if (fixed && I->op != BI_OPCODE_COLLECT_I32) {
          bi_foreach_ssa_src(I, s) {
-            if (I->src[s].value < first_reg)
+            if (I->src[s].value < first_reg) {
                BITSET_SET(skip, I->src[s].value);
+               BITSET_SET(skip_dest, I->src[s].value);
+            }
          }
       }
    }
 
    bi_foreach_instr_global(ctx, I) {
       if (I->op != BI_OPCODE_COLLECT_I32 || I->nr_srcs < 2 ||
-          I->dest[0].value >= first_reg || I->dest[0].memory)
+          I->dest[0].type != BI_INDEX_NORMAL || I->dest[0].offset ||
+          I->dest[0].value >= first_reg || I->dest[0].memory ||
+          BITSET_TEST(skip_dest, I->dest[0].value))
          continue;
 
       bi_foreach_src(I, i) {
@@ -1026,6 +1035,7 @@ bi_coalesce_collects(bi_context *ctx, unsigned first_reg)
    }
 
    free(rename);
+   free(skip_dest);
    free(skip);
    free(def);
    return any;
