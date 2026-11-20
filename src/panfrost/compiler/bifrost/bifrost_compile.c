@@ -4296,45 +4296,53 @@ bi_hash_selected(const nir_shader *nir)
 }
 
 
-/* Diagnostic: PAN_BI_TINT=<bit> makes every fragment shader output a flat
- * colour chosen from 3 bits of its source hash (bits <bit>..<bit>+2 of the
- * first 32-bit word; bit0 -> red, bit1 -> green, bit2 -> blue; a set bit is
- * full intensity, a clear bit is 0.25). Lets the hash of the shader drawing a
- * given object be read off the screen. PAN_BI_HASH_LOG=<path> appends the
- * full hash prefix of every tinted shader. */
+/* Diagnostic: PAN_BI_TINT=<bit> splits fragment shaders into 4 groups by the
+ * 2 bits <bit>,<bit>+1 of the first 32-bit word of their source hash. Group 0
+ * outputs flat green, group 1 flat red, group 2 flat blue, group 3 is left
+ * untouched. Shaders with fewer than 3 interpolated varyings (full-screen
+ * passes) are skipped unless PAN_BI_TINT_ALL=1, so the scene stays visible.
+ * PAN_BI_HASH_LOG=<path> appends "<hash> <group>" for each tinted shader. */
 static void
 bi_tint_fragment(nir_shader *nir)
 {
    static bool init;
    static bool enabled;
+   static bool all;
    static unsigned bit;
    if (!init) {
       const char *e = getenv("PAN_BI_TINT");
       if (e) {
          bit = (unsigned)strtoul(e, NULL, 0);
-         enabled = bit <= 29;
+         enabled = bit <= 30;
       }
+      all = getenv("PAN_BI_TINT_ALL") != NULL;
       init = true;
    }
 
    if (!enabled || nir->info.stage != MESA_SHADER_FRAGMENT)
       return;
 
+   if (!all &&
+       util_bitcount64(nir->info.inputs_read >> VARYING_SLOT_VAR0) < 3)
+      return;
+
    const uint8_t *h = (const uint8_t *)nir->info.source_blake3;
    uint32_t w = (uint32_t)h[0] | ((uint32_t)h[1] << 8) |
                 ((uint32_t)h[2] << 16) | ((uint32_t)h[3] << 24);
 
-   double col[4];
-   for (unsigned i = 0; i < 3; ++i)
-      col[i] = ((w >> (bit + i)) & 1) ? 1.0 : 0.25;
-   col[3] = 1.0;
+   unsigned group = (w >> bit) & 3;
+   if (group == 3)
+      return;
+
+   double col[4] = {group == 1 ? 1.0 : 0.0, group == 0 ? 1.0 : 0.0,
+                    group == 2 ? 1.0 : 0.0, 1.0};
 
    const char *log = getenv("PAN_BI_HASH_LOG");
    if (log) {
       FILE *f = fopen(log, "a");
       if (f) {
-         fprintf(f, "%02x%02x%02x%02x%02x%02x%02x%02x\n", h[0], h[1], h[2],
-                 h[3], h[4], h[5], h[6], h[7]);
+         fprintf(f, "%02x%02x%02x%02x%02x%02x%02x%02x %u\n", h[0], h[1], h[2],
+                 h[3], h[4], h[5], h[6], h[7], group);
          fclose(f);
       }
    }
