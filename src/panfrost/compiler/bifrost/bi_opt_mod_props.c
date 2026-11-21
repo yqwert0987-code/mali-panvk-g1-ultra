@@ -260,11 +260,11 @@ bi_nofuse_fadd(const bi_instr *I, const bi_instr *mod, unsigned s)
    static unsigned mask;
    static bool init;
    if (!init) {
-      /* Default 4: folding a negate-only modifier into FADD.f32 miscompiles on Mali-G1 (v14),
-       * found by bisecting a wrong-colour ground in Sekiro. abs and neg+abs folds are fine.
-       * PAN_BI_NOFUSE_FADD=0 re-enables the negate fold. */
+      /* Default 0 (no block). The wrong-colour ground in Sekiro that this once
+       * worked around was caused by bi_coalesce_collects in bi_ra.c, fixed in
+       * 07f01f9/bcfda07. Set PAN_BI_NOFUSE_FADD=4 to block negate-only folds. */
       const char *e = getenv("PAN_BI_NOFUSE_FADD");
-      mask = e ? (unsigned)strtoul(e, NULL, 0) : 4;
+      mask = e ? (unsigned)strtoul(e, NULL, 0) : 0;
       init = true;
    }
    if (!mask || I->op != BI_OPCODE_FADD_F32)
