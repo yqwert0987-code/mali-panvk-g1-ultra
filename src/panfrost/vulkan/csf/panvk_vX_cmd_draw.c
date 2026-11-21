@@ -4334,20 +4334,56 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
                         : (struct pan_ptr){0};
    /* The tess eval shader's records: what the rasterization pass draws, or what the geometry
     * shader reads. */
-   struct pan_ptr tes_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * 16, 64);
-   struct pan_ptr tes_gen =
-      tes->gs.rec_stride ? panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * tes->gs.rec_stride, 64)
-                         : (struct pan_ptr){0};
-   struct pan_ptr tes_idx = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * 4, 4);
+   struct pan_ptr tes_pos, tes_gen = {0}, tes_idx;
    struct pan_ptr gs_pos = {0}, gs_gen = {0}, gs_idx = {0};
+
+   /* PANVK_TESS_REUSE: carve these output buffers from the device's scratch buffer, which every
+    * tessellated draw reuses, instead of allocating them per draw. Like the tessellator heap,
+    * this relies on nothing earlier on the vertex/tiler queue still reading them when this draw's
+    * tess eval writes them. They have no CPU mapping, so emu_clear does nothing for them. A draw
+    * that does not fit falls back to per-draw allocations. */
+   uint64_t scratch_need = ALIGN_POT((uint64_t)cap * 16, 64) + ALIGN_POT((uint64_t)cap * 4, 64);
+   if (tes->gs.rec_stride)
+      scratch_need += ALIGN_POT((uint64_t)cap * tes->gs.rec_stride, 64);
    if (gs) {
-      gs_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, out_verts * 16, 64);
+      scratch_need += ALIGN_POT((uint64_t)out_verts * 16, 64) +
+                      ALIGN_POT((uint64_t)out_indices * 4, 64);
       if (gs->gs.rec_stride)
-         gs_gen = panvk_cmd_alloc_dev_mem(cmdbuf, desc, out_verts * gs->gs.rec_stride, 64);
-      gs_idx = panvk_cmd_alloc_dev_mem(cmdbuf, desc, out_indices * 4, 4);
-      if (!gs_pos.gpu || !gs_idx.gpu || (gs->gs.rec_stride && !gs_gen.gpu))
-         return;
+         scratch_need += ALIGN_POT((uint64_t)out_verts * gs->gs.rec_stride, 64);
    }
+
+   if (dev->tess_scratch && scratch_need <= dev->tess_scratch_size) {
+      uint64_t at = dev->tess_scratch->addr.dev;
+#define TESS_CARVE(p, bytes)                                                                       \
+   do {                                                                                            \
+      (p) = (struct pan_ptr){.cpu = NULL, .gpu = at};                                              \
+      at += ALIGN_POT((uint64_t)(bytes), 64);                                                      \
+   } while (0)
+      TESS_CARVE(tes_pos, (uint64_t)cap * 16);
+      if (tes->gs.rec_stride)
+         TESS_CARVE(tes_gen, (uint64_t)cap * tes->gs.rec_stride);
+      TESS_CARVE(tes_idx, (uint64_t)cap * 4);
+      if (gs) {
+         TESS_CARVE(gs_pos, (uint64_t)out_verts * 16);
+         if (gs->gs.rec_stride)
+            TESS_CARVE(gs_gen, (uint64_t)out_verts * gs->gs.rec_stride);
+         TESS_CARVE(gs_idx, (uint64_t)out_indices * 4);
+      }
+#undef TESS_CARVE
+   } else {
+      tes_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * 16, 64);
+      if (tes->gs.rec_stride)
+         tes_gen = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * tes->gs.rec_stride, 64);
+      tes_idx = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * 4, 4);
+      if (gs) {
+         gs_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, out_verts * 16, 64);
+         if (gs->gs.rec_stride)
+            gs_gen = panvk_cmd_alloc_dev_mem(cmdbuf, desc, out_verts * gs->gs.rec_stride, 64);
+         gs_idx = panvk_cmd_alloc_dev_mem(cmdbuf, desc, out_indices * 4, 4);
+      }
+   }
+   if (gs && (!gs_pos.gpu || !gs_idx.gpu || (gs->gs.rec_stride && !gs_gen.gpu)))
+      return;
    struct pan_ptr saved = panvk_cmd_alloc_dev_mem(cmdbuf, desc, PANVK_GS_SAVED_REGS * 4, 64);
    struct pan_ptr setup = {0}, tsetup = {0};
    if (indirect) {

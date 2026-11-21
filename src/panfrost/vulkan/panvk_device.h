@@ -89,6 +89,11 @@ struct panvk_device {
    /* v6/v7 tessellation: the domain points and index buffers the tessellator writes, reused by
     * every batch (see panlib_tess_prefix_sum). */
    struct panvk_priv_bo *tess_heap;
+   /* PANVK_TESS_REUSE: one scratch buffer that every tessellated draw carves its tess eval
+    * (and geometry shader) output buffers from, instead of allocating them per draw. NULL
+    * when the option is off. */
+   struct panvk_priv_bo *tess_scratch;
+   uint64_t tess_scratch_size;
 
    /* v6/v7: the internal geometry shaders that draw triangles as lines ([0]) or points ([1]) for
     * VK_POLYGON_MODE_LINE/POINT, built on first use (panvk_per_arch(polygon_mode_gs)). */

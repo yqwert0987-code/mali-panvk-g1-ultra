@@ -11,6 +11,7 @@
  */
 
 #include <fcntl.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "drm-uapi/panthor_drm.h"
@@ -765,6 +766,20 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
                                     VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &device->tess_heap);
       if (result != VK_SUCCESS)
          goto err_free_priv_bos;
+
+      /* PANVK_TESS_REUSE=<MiB> (1 = 64): reuse one scratch buffer for the tessellated draws'
+       * output buffers. Off unless set. */
+      const char *reuse = getenv("PANVK_TESS_REUSE");
+      unsigned long reuse_mib = reuse ? strtoul(reuse, NULL, 0) : 0;
+      if (reuse_mib == 1)
+         reuse_mib = 64;
+      if (reuse_mib >= 2 && reuse_mib <= 1024) {
+         result = panvk_priv_bo_create(device, reuse_mib << 20, PAN_KMOD_BO_FLAG_NO_MMAP,
+                                       VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &device->tess_scratch);
+         if (result != VK_SUCCESS)
+            goto err_free_priv_bos;
+         device->tess_scratch_size = reuse_mib << 20;
+      }
    }
 #endif
 
@@ -894,6 +909,7 @@ err_free_priv_bos:
 #if PAN_ARCH >= 10
    simple_mtx_destroy(&device->poly_heap.init_lock);
 #endif
+   panvk_priv_bo_unref(device->tess_scratch);
    panvk_priv_bo_unref(device->tess_heap);
    panvk_priv_bo_unref(device->tiler_heap[0]);
    panvk_priv_bo_unref(device->tiler_heap[1]);
@@ -961,6 +977,7 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
 #if PAN_ARCH >= 10
    simple_mtx_destroy(&device->poly_heap.init_lock);
 #endif
+   panvk_priv_bo_unref(device->tess_scratch);
    panvk_priv_bo_unref(device->tess_heap);
    panvk_priv_bo_unref(device->tiler_heap[0]);
    panvk_priv_bo_unref(device->tiler_heap[1]);
