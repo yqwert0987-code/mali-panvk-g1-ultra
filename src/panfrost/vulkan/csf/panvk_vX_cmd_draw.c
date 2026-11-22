@@ -4370,7 +4370,10 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
          TESS_CARVE(gs_idx, (uint64_t)out_indices * 4);
       }
 #undef TESS_CARVE
+      panvk_stat_add(PANVK_STAT_TESS_REUSED, scratch_need);
    } else {
+      if (dev->tess_scratch)
+         panvk_stat_count(PANVK_STAT_TESS_REUSE_MISS);
       tes_pos = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * 16, 64);
       if (tes->gs.rec_stride)
          tes_gen = panvk_cmd_alloc_dev_mem(cmdbuf, desc, cap * tes->gs.rec_stride, 64);

@@ -140,6 +140,8 @@ enum panvk_stat {
    PANVK_STAT_PRIVBO_FREED,   /* ... and destroyed */
    PANVK_STAT_VKMEM_NEW,      /* bytes from vkAllocateMemory */
    PANVK_STAT_VKMEM_FREED,    /* ... and vkFreeMemory */
+   PANVK_STAT_TESS_REUSED,    /* bytes carved from the PANVK_TESS_REUSE scratch buffer */
+   PANVK_STAT_TESS_REUSE_MISS, /* tess draws that did not fit it and allocated per draw */
    PANVK_STAT_COUNT,
 };
 

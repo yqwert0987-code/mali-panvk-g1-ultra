@@ -305,10 +305,11 @@ stats_init(void)
          const char *viewsw = os_get_option("PANVK_VIEW_SWIZZLE");
          const char *fullmask = os_get_option("PANVK_FULL_MASK");
          const char *storbgra = os_get_option("PANVK_STORAGE_BGRA");
+         const char *tessreuse = os_get_option("PANVK_TESS_REUSE");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s PANVK_VIEW_SWIZZLE=%s PANVK_FULL_MASK=%s PANVK_STORAGE_BGRA=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s PANVK_VIEW_SWIZZLE=%s PANVK_FULL_MASK=%s PANVK_STORAGE_BGRA=%s PANVK_TESS_REUSE=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
                  skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)",
                  chunks ? chunks : "(unset)",
@@ -317,7 +318,8 @@ stats_init(void)
                  bigreuse ? bigreuse : "(unset)", heaplim ? heaplim : "(unset)",
                  bcview ? bcview : "(unset)", nohwr11 ? nohwr11 : "(unset)",
                  nohwblend ? nohwblend : "(unset)", viewsw ? viewsw : "(unset)",
-                 fullmask ? fullmask : "(unset)", storbgra ? storbgra : "(unset)");
+                 fullmask ? fullmask : "(unset)", storbgra ? storbgra : "(unset)",
+                 tessreuse ? tessreuse : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;
@@ -388,7 +390,7 @@ stat_add(enum panvk_stat stat, uint64_t n)
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
            " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
            " memavail_mib=%.0f privbo_new_mib_s=%.1f privbo_free_mib_s=%.1f vkmem_new_mib_s=%.1f"
-           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f wls_mib_s=%.1f tls_mib_s=%.1f gs_skipped=%.0f\n",
+           " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f wls_mib_s=%.1f tls_mib_s=%.1f gs_skipped=%.0f reuse_mib_s=%.1f reuse_fallback=%.0f\n",
            (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
            d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
@@ -404,7 +406,8 @@ stat_add(enum panvk_stat stat, uint64_t n)
            d[PANVK_STAT_EMU_PLANNED] / 1048576.0 / secs,
            d[PANVK_STAT_WLS_BYTES] / 1048576.0 / secs,
            d[PANVK_STAT_TLS_BYTES] / 1048576.0 / secs,
-           d[PANVK_STAT_GS_SKIPPED] / secs);
+           d[PANVK_STAT_GS_SKIPPED] / secs, d[PANVK_STAT_TESS_REUSED] / 1048576.0 / secs,
+           d[PANVK_STAT_TESS_REUSE_MISS] / secs);
    fflush(stats_file);
    __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
 
