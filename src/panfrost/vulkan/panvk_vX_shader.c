@@ -643,6 +643,16 @@ vs_may_draw_polygon_mode(const struct vk_features *features,
 {
    if (!features->fillModeNonSolid)
       return false;
+   /* PANVK_NO_POLY_VS=1: for a test only. A pipeline that does not say its polygon mode up front
+    * (dynamic or unknown) compiles no polygon mode variant, which halves the vertex shader
+    * compiles. An app that then draws lines or points as polygon mode will not draw them right. */
+   static int no_poly_vs = -1;
+   if (no_poly_vs < 0) {
+      const char *e = getenv("PANVK_NO_POLY_VS");
+      no_poly_vs = e && atoi(e) > 0;
+   }
+   if (no_poly_vs && (!state || !state->rs || BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_RS_POLYGON_MODE)))
+      return false;
    if (!state || !state->rs || BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_RS_POLYGON_MODE))
       return true;
    return state->rs->polygon_mode != VK_POLYGON_MODE_FILL;
