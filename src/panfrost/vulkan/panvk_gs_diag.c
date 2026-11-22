@@ -14,6 +14,7 @@
 
 #include "kmod/kbase_kmod.h"
 #include "util/log.h"
+#include "util/macros.h"
 #include "util/os_misc.h"
 #include "util/os_time.h"
 
@@ -31,6 +32,30 @@ static uint64_t next_seq;
 static int hook_installed;
 
 static FILE *stats_file;
+/* PANVK_STATS_BRIEF=1: short per-second lines, no repetitive info lines (faults still dump). */
+static int stats_brief = -1;
+static bool
+brief_on(void)
+{
+   if (stats_brief < 0) {
+      const char *e = os_get_option("PANVK_STATS_BRIEF");
+      stats_brief = e && e[0] && e[0] != '0';
+   }
+   return stats_brief;
+}
+static bool
+brief_noise(const char *m)
+{
+   static const char *const noise[] = {"gs-diag: render target", "gs-diag: blend",
+                                       "gs-diag: bc-emu", "gs-diag: dispatch wants",
+                                       "gs-diag: command buffer stack", "gs-diag: skipping",
+                                       "gs-diag: geometry shader draw runs"};
+   for (unsigned i = 0; i < ARRAY_SIZE(noise); i++)
+      if (!strncmp(m, noise[i], strlen(noise[i])))
+         return true;
+   /* "plans" lines: "gs-diag: <name> plans N MiB" */
+   return !strncmp(m, "gs-diag: ", 9) && strstr(m, " plans ") && strstr(m, "MiB: patches=");
+}
 static void stat_add(enum panvk_stat stat, uint64_t n);
 
 /* Logs to Mesa's log and, when PANVK_STATS is set, also to the stats file as a "# " line. The
@@ -48,7 +73,7 @@ diag_logf(const char *fmt, ...)
    va_end(ap);
 
    mesa_loge("%s", buf);
-   if (stats_file) {
+   if (stats_file && !(brief_on() && brief_noise(buf))) {
       fprintf(stats_file, "# %s\n", buf);
       fflush(stats_file);
    }
@@ -393,6 +418,22 @@ stat_add(enum panvk_stat stat, uint64_t n)
       const uint64_t c = __atomic_load_n(&stat_counts[i], __ATOMIC_RELAXED);
       d[i] = c - stat_prev[i];
       stat_prev[i] = c;
+   }
+   if (brief_on()) {
+      fprintf(stats_file,
+              "t=%.0f d=%.0f tess=%.0f gpu=%.0f%% us/d=%.0f cpu_draw=%.0f sub_wait=%.0f"
+              " rss=%.0f avail=%.0f pbo=%.0f reuse=%.0f miss=%.0f\n",
+              (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
+              d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0,
+              d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0,
+              d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs,
+              read_rss_mib(), read_memavail_mib(), d[PANVK_STAT_PRIVBO_NEW] / 1048576.0 / secs,
+              d[PANVK_STAT_TESS_REUSED] / 1048576.0 / secs,
+              d[PANVK_STAT_TESS_REUSE_MISS] / secs);
+      fflush(stats_file);
+      __atomic_store_n(&stat_last_ns, now, __ATOMIC_RELAXED);
+      pthread_mutex_unlock(&stats_lock);
+      return;
    }
    fprintf(stats_file,
            "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
