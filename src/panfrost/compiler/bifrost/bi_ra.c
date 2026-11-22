@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <string.h>
 #include "util/u_debug.h"
 #include "util/u_memory.h"
 #include "bi_debug.h"
@@ -14,6 +15,11 @@
 #define PAN_MAX_SPILL_BATCH 32
 
 DEBUG_GET_ONCE_NUM_OPTION(ra_spill_batch, "PAN_RA_SPILL_BATCH", 8)
+/* PAN_RA_BATCH_AFTER=<n>: spill one value per attempt for the first n attempts, then batch. */
+DEBUG_GET_ONCE_NUM_OPTION(ra_batch_after, "PAN_RA_BATCH_AFTER", 4)
+/* PAN_RA_SKIP32=1: a shader the SSA spiller already had to spill cannot fit 32 registers, so skip
+ * the 32-register attempts for it. Off by default. */
+DEBUG_GET_ONCE_BOOL_OPTION(ra_skip32, "PAN_RA_SKIP32", false)
 
 struct lcra_state {
    unsigned node_count;
@@ -324,6 +330,28 @@ bi_make_affinity(uint64_t clobber, unsigned count, bool split_file)
    return ~clobbered;
 }
 
+/* Index of the first node at or after i with a non-zero live mask, or n if there is none. Only a
+ * few dozen of a big shader's thousands of nodes are live at any point, so the zero bytes are
+ * skipped eight at a time. */
+static inline unsigned
+bi_next_live(const uint8_t *live, unsigned i, unsigned n)
+{
+   while (i < n) {
+      if ((i & 7) == 0 && i + 8 <= n) {
+         uint64_t w;
+         memcpy(&w, live + i, sizeof(w));
+         if (!w) {
+            i += 8;
+            continue;
+         }
+      }
+      if (live[i])
+         return i;
+      ++i;
+   }
+   return n;
+}
+
 static void
 bi_mark_interference(bi_block *block, struct lcra_state *l, uint8_t *live,
                      uint64_t preload_live, unsigned node_count, bool is_blend,
@@ -353,7 +381,8 @@ bi_mark_interference(bi_block *block, struct lcra_state *l, uint8_t *live,
 
          l->affinity[node] &= affinity;
 
-         for (unsigned i = 0; i < node_count; ++i) {
+         for (unsigned i = bi_next_live(live, 0, node_count); i < node_count;
+              i = bi_next_live(live, i + 1, node_count)) {
             uint8_t r = live[i];
 
             /* Nodes only interfere if they occupy
@@ -415,10 +444,9 @@ bi_mark_interference(bi_block *block, struct lcra_state *l, uint8_t *live,
             BITFIELD64_MASK(16) |
             BITFIELD64_BIT(bi_preload_reg(BI_PRELOAD_BLEND_LINK, arch));
 
-         for (unsigned i = 0; i < node_count; ++i) {
-            if (live[i])
-               l->affinity[i] &= ~clobber;
-         }
+         for (unsigned i = bi_next_live(live, 0, node_count); i < node_count;
+              i = bi_next_live(live, i + 1, node_count))
+            l->affinity[i] &= ~clobber;
       }
 
       /* Update live_in */
@@ -1531,6 +1559,7 @@ bi_register_allocate(bi_context *ctx)
 
    unsigned iter_count = 0;
    unsigned max_iters = 2000;
+   bool ssa_spilled = false;
    /* Number of bytes of memory we've spilled into */
    unsigned spill_count = ctx->info.tls_size;
 
@@ -1558,6 +1587,7 @@ bi_register_allocate(bi_context *ctx)
             UNREACHABLE("Blend shaders may not spill");
 
          bi_spill_ssa(ctx, regs_to_use);
+         ssa_spilled = true;
          spill_count += bi_lower_spill(ctx, spill_count);
 
          /* By default, we use packed TLS addressing on Valhall.
@@ -1589,7 +1619,7 @@ bi_register_allocate(bi_context *ctx)
     * spill: fall back to the plain moves first at 32 registers, then at the
     * full register file.
     */
-   if (ctx->arch >= 7) {
+   if (ctx->arch >= 7 && !(ssa_spilled && debug_get_option_ra_skip32())) {
       l = bi_allocate_registers(ctx, &success, false);
 
       if (!success && coalesce) {
@@ -1642,7 +1672,7 @@ bi_register_allocate(bi_context *ctx)
          unsigned nodes[PAN_MAX_SPILL_BATCH];
          unsigned num_nodes = 0;
 
-         if (batch > 1 && iter_count > 4) {
+         if (batch > 1 && iter_count > debug_get_option_ra_batch_after()) {
             num_nodes = bi_choose_spill_nodes(ctx, l, batch, nodes);
          } else {
             signed spill_node = bi_choose_spill_node(ctx, l);
