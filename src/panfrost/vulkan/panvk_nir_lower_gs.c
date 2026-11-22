@@ -1114,6 +1114,18 @@ panvk_nir_lower_gs(struct nir_shader *nir, const struct panvk_gs_lower_options *
    st.instance = nir_udiv(&b, prim_global, ppi);
    st.prim_id = nir_isub(&b, prim_global, nir_imul(&b, st.instance, ppi));
 
+   /* PANVK_TESS_EXACT_DRAW: the draw only walks the real index count, so an invocation past it
+    * has no slots worth filling. Invocation 0 still goes on, as it writes that count. */
+   {
+      nir_def *exact = load_param_u32(&b, opts, offsetof(struct panvk_gs_push, exact_count));
+      nir_def *skip = nir_iand(&b, nir_ine_imm(&b, exact, 0),
+                               nir_iand(&b, nir_uge(&b, prim_global, actual_prims),
+                                        nir_ine_imm(&b, gid, 0)));
+      nir_push_if(&b, skip);
+      nir_jump(&b, nir_jump_return);
+      nir_pop_if(&b, NULL);
+   }
+
    emit_degenerate_fill(&b, &st);
 
    /* Invocation 0 tells the tiler how many indices there really are (stored minus one). No

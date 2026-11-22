@@ -240,6 +240,14 @@ struct panvk_cmd_graphics_state {
       uint64_t xfb_counts;
       uint64_t xfb_staging;
       uint32_t xfb_invocations;
+      /* The record offset tables gs_upload_table uploaded in this command buffer, by the address
+       * of the shader's table, so the same shader does not upload its 256 bytes on every draw.
+       * Cleared with the rest of the state when the command buffer is reset. */
+      struct {
+         const uint32_t *src;
+         uint64_t gpu;
+      } table_cache[4];
+      uint32_t table_cache_next;
       /* geometryStreams, see panvk_gs_push::xfb_stream_*. */
       uint64_t xfb_stream_index;
       uint32_t xfb_stream_slots;
@@ -606,6 +614,9 @@ struct panvk_draw_info {
 #endif
       int32_t base;
       uint32_t count;
+      /* CSF only, 0 normally: where a uint32_t holding the real count minus one is. The tiler
+       * then draws that many indices and .count is only the capacity. */
+      uint64_t count_addr;
    } vertex;
 
    struct {

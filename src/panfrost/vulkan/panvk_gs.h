@@ -132,7 +132,10 @@ struct panvk_gs_push {
    uint32_t xfb_stream_slots;
    uint32_t xfb_stream_idx;
    uint32_t xfb_invocations;
-   uint32_t pad4;
+   /* Non-zero when the rasterization draw takes its index count from tiler_index_count, so the
+    * slots past the real count are never drawn: invocations past it (other than invocation 0,
+    * which writes the count) return without filling them. */
+   uint32_t exact_count;
 };
 
 /* gl_ViewportIndex, carried from the emulation to the fragment shader. VARYING_SLOT_VIEWPORT is a

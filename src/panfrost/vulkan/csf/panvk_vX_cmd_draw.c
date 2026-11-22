@@ -3117,7 +3117,18 @@ launch_draw(struct panvk_cmd_buffer *cmdbuf,
 
    cs_update_vt_ctx(b) {
       vt_sr_move32(cmdbuf, b, MALI_IDVS_SR_GLOBAL_ATTRIBUTE_OFFSET, 0);
-      vt_sr_move32(cmdbuf, b, MALI_IDVS_SR_INDEX_COUNT, draw->vertex.count);
+      if (draw->vertex.count_addr) {
+         /* The tess eval stage stored the real index count minus one. The register changes
+          * under the cached copy, so forget it. */
+         cs_move64_to(b, cs_scratch_reg64(b, 4), draw->vertex.count_addr);
+         cs_load32_to(b, cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT), cs_scratch_reg64(b, 4), 0);
+         cs_flush_loads(b);
+         cs_add32(b, cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT),
+                  cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT), 1);
+         cmdbuf->state.gfx.idvs_sr_valid &= ~BITFIELD64_BIT(MALI_IDVS_SR_INDEX_COUNT);
+      } else {
+         vt_sr_move32(cmdbuf, b, MALI_IDVS_SR_INDEX_COUNT, draw->vertex.count);
+      }
       vt_sr_move32(cmdbuf, b, MALI_IDVS_SR_INSTANCE_COUNT,
                    draw->instance.count);
       vt_sr_move32(cmdbuf, b, MALI_IDVS_SR_INDEX_OFFSET, draw->index.offset);
@@ -3573,9 +3584,39 @@ vt_run_compute(struct panvk_cmd_buffer *cmdbuf, const struct panvk_shader_varian
     * does it. */
    unsigned task_axis = MALI_TASK_AXIS_Z;
    unsigned task_increment = 1;
-   if (is_compute)
+   if (is_compute) {
       panvk_per_arch(calculate_task_axis_and_increment)(shader, phys_dev, &dim, &task_axis,
                                                         &task_increment);
+   } else {
+      /* PANVK_VT_AXIS=1: split the grid into tasks sized for a core's threads, as a compute
+       * dispatch is, so the cores can share it. Off: the whole grid is one task along Z. */
+      static int vt_axis_env = -1;
+      if (vt_axis_env < 0) {
+         const char *e = getenv("PANVK_VT_AXIS");
+         vt_axis_env = e && atoi(e) > 0;
+      }
+      const unsigned total_wgs = count_x * count_y;
+      if (vt_axis_env && total_wgs && wg_size) {
+         const struct pan_kmod_dev_props *props = &phys_dev->kmod.dev->props;
+         const unsigned max_thread_cnt =
+            pan_compute_max_thread_count(props, shader->info.work_reg_count);
+         const unsigned cores = MAX2(util_bitcount64(phys_dev->compute_core_mask), 1);
+         const unsigned wgs_per_core = DIV_ROUND_UP(total_wgs, cores);
+         const unsigned threads_per_task =
+            DIV_ROUND_UP(max_thread_cnt, MAX2(props->max_tasks_per_core, 1));
+         unsigned wgs_per_task = CLAMP(threads_per_task / wg_size, 1u, wgs_per_core);
+         const unsigned counts[2] = {count_x, count_y};
+
+         task_axis = MALI_TASK_AXIS_X;
+         task_increment = wgs_per_task;
+         for (unsigned i = 0; i < 2; i++) {
+            if (task_increment <= counts[i])
+               break;
+            task_axis++;
+            task_increment /= counts[i];
+         }
+      }
+   }
    cs_run_compute(b, task_increment, task_axis, PANVK_COMPUTE_RES_SEL);
 
    /* The next stage reads what this one wrote. */
@@ -3654,9 +3695,20 @@ gs_index_records(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *
 static uint64_t
 gs_upload_table(struct panvk_cmd_buffer *cmdbuf, const uint32_t *offsets)
 {
+   struct panvk_cmd_graphics_state *gfx = &cmdbuf->state.gfx;
+   for (unsigned i = 0; i < ARRAY_SIZE(gfx->gs.table_cache); i++) {
+      if (gfx->gs.table_cache[i].src == offsets && gfx->gs.table_cache[i].gpu)
+         return gfx->gs.table_cache[i].gpu;
+   }
+
    struct pan_ptr t = panvk_cmd_alloc_dev_mem(cmdbuf, desc, 64 * sizeof(uint32_t), 4);
    if (t.cpu)
       memcpy(t.cpu, offsets, 64 * sizeof(uint32_t));
+   if (t.gpu) {
+      const unsigned slot = gfx->gs.table_cache_next++ % ARRAY_SIZE(gfx->gs.table_cache);
+      gfx->gs.table_cache[slot].src = offsets;
+      gfx->gs.table_cache[slot].gpu = t.gpu;
+   }
    return t.gpu;
 }
 
@@ -4604,6 +4656,25 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
    tes_sv.gs.prims_per_instance = cap;
    tes_sv.gs.num_prims_addr = out;
 
+   /* PANVK_TESS_EXACT_DRAW=1: the rasterization pass draws the index count the tess eval stage
+    * stores, not the whole capped buffer. Not with a geometry shader or capture, which read the
+    * buffer past that count. */
+   static int tess_exact_env = -1;
+   if (tess_exact_env < 0) {
+      const char *e = getenv("PANVK_TESS_EXACT_DRAW");
+      tess_exact_env = e && atoi(e) > 0;
+   }
+   struct pan_ptr exact_slot = {0};
+   if (tess_exact_env && !gs && !cmdbuf->state.gfx.gs.xfb_counts) {
+      exact_slot = panvk_cmd_alloc_dev_mem(cmdbuf, desc, 16, 16);
+      if (exact_slot.gpu) {
+         if (exact_slot.cpu)
+            *(uint32_t *)exact_slot.cpu = cap - cap % tess_vpp - 1;
+         tes_sv.gs.tiler_index_count = exact_slot.gpu;
+         tes_sv.gs.exact_count = 1;
+      }
+   }
+
    /* The geometry shader reads the tess eval records as a list of the tessellator's primitives,
     * as many as out[2] says. */
    const uint32_t gs_wg = DIV_ROUND_UP(gs_invocations, PANVK_GS_WORKGROUP_SIZE);
@@ -4734,6 +4805,7 @@ tess_draw(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *draw, u
       .index.buffer_size = n_idx * 4,
       .index.index_size = 4,
       .vertex.count = n_idx,
+      .vertex.count_addr = exact_slot.gpu,
       .instance.count = 1,
       .prim = vpp == 3 ? MESA_PRIM_TRIANGLES : vpp == 2 ? MESA_PRIM_LINES : MESA_PRIM_POINTS,
    };
