@@ -3123,7 +3123,7 @@ launch_draw(struct panvk_cmd_buffer *cmdbuf,
          cs_move64_to(b, cs_scratch_reg64(b, 4), draw->vertex.count_addr);
          cs_load32_to(b, cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT), cs_scratch_reg64(b, 4), 0);
          cs_flush_loads(b);
-         cs_add32(b, cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT),
+         cs_add_imm32(b, cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT),
                   cs_reg32(b, MALI_IDVS_SR_INDEX_COUNT), 1);
          cmdbuf->state.gfx.idvs_sr_valid &= ~BITFIELD64_BIT(MALI_IDVS_SR_INDEX_COUNT);
       } else {
