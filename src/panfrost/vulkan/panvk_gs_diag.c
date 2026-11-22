@@ -306,10 +306,16 @@ stats_init(void)
          const char *fullmask = os_get_option("PANVK_FULL_MASK");
          const char *storbgra = os_get_option("PANVK_STORAGE_BGRA");
          const char *tessreuse = os_get_option("PANVK_TESS_REUSE");
+         const char *tessexact = os_get_option("PANVK_TESS_EXACT_DRAW");
+         const char *vtaxis = os_get_option("PANVK_VT_AXIS");
+         const char *nopolyvs = os_get_option("PANVK_NO_POLY_VS");
+         const char *wlsreuse = os_get_option("PANVK_WLS_REUSE");
+         const char *raskip32 = os_get_option("PAN_RA_SKIP32");
+         const char *rabatch = os_get_option("PAN_RA_BATCH_AFTER");
          /* rev 7: thread stack shared by default, fault dump lists pointers. */
          fprintf(stats_file,
                  "# panvk stats rev 7, pid %d, PANVK_TESS_CAP=%s PANVK_TLS_SHARE=%s "
-                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s PANVK_VIEW_SWIZZLE=%s PANVK_FULL_MASK=%s PANVK_STORAGE_BGRA=%s PANVK_TESS_REUSE=%s\n",
+                 "PANVK_GS_SKIP_INSTANCES=%s PANVK_GS_NORAST_INSTANCES=%s PANVK_GS_VS_ONLY_INSTANCES=%s PANVK_TILER_MAX_CHUNKS=%s PANVK_TESS_MAX_LEVEL=%s PANVK_EMU_CLEAR=%s PANVK_TILER_IN_FLIGHT=%s PANVK_NO_BC_EMU=%s PANVK_DESC_BIG_REUSE=%s PANVK_HEAP_LIMIT_MIB=%s PANVK_BC_EMU_VIEW=%s PAN_NO_HW_R11=%s PAN_NO_HW_BLEND=%s PANVK_VIEW_SWIZZLE=%s PANVK_FULL_MASK=%s PANVK_STORAGE_BGRA=%s PANVK_TESS_REUSE=%s PANVK_TESS_EXACT_DRAW=%s PANVK_VT_AXIS=%s PANVK_NO_POLY_VS=%s PANVK_WLS_REUSE=%s PAN_RA_SKIP32=%s PAN_RA_BATCH_AFTER=%s\n",
                  (int)getpid(), cap ? cap : "(unset)", share ? share : "(unset=on)",
                  skip ? skip : "(unset)", norast ? norast : "(unset)", vsonly ? vsonly : "(unset)",
                  chunks ? chunks : "(unset)",
@@ -319,7 +325,10 @@ stats_init(void)
                  bcview ? bcview : "(unset)", nohwr11 ? nohwr11 : "(unset)",
                  nohwblend ? nohwblend : "(unset)", viewsw ? viewsw : "(unset)",
                  fullmask ? fullmask : "(unset)", storbgra ? storbgra : "(unset)",
-                 tessreuse ? tessreuse : "(unset)");
+                 tessreuse ? tessreuse : "(unset)", tessexact ? tessexact : "(unset)",
+                 vtaxis ? vtaxis : "(unset)", nopolyvs ? nopolyvs : "(unset)",
+                 wlsreuse ? wlsreuse : "(unset)", raskip32 ? raskip32 : "(unset)",
+                 rabatch ? rabatch : "(unset)");
          fflush(stats_file);
       } else {
          stats_mode = 1;
