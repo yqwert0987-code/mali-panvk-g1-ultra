@@ -49,7 +49,8 @@ brief_noise(const char *m)
    static const char *const noise[] = {"gs-diag: render target", "gs-diag: blend",
                                        "gs-diag: bc-emu", "gs-diag: dispatch wants",
                                        "gs-diag: command buffer stack", "gs-diag: skipping",
-                                       "gs-diag: geometry shader draw runs"};
+                                       "gs-diag: geometry shader draw runs", "gs-diag: shader compile",
+                                       "gs-diag: big allocation"};
    for (unsigned i = 0; i < ARRAY_SIZE(noise); i++)
       if (!strncmp(m, noise[i], strlen(noise[i])))
          return true;
@@ -421,10 +422,10 @@ stat_add(enum panvk_stat stat, uint64_t n)
    }
    if (brief_on()) {
       fprintf(stats_file,
-              "t=%.0f d=%.0f tess=%.0f gpu=%.0f%% us/d=%.0f cpu_draw=%.0f sub_wait=%.0f"
+              "t=%.0f fps=%.1f d=%.0f tess=%.0f gpu=%.0f%% us/d=%.0f cpu_draw=%.0f sub_wait=%.0f"
               " rss=%.0f avail=%.0f pbo=%.0f reuse=%.0f miss=%.0f\n",
-              (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
-              d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0,
+              (now - stat_start_ns) / 1e9, d[PANVK_STAT_FRAME] / secs, d[PANVK_STAT_DRAW] / secs,
+              d[PANVK_STAT_TESS] / secs, d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0,
               d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0,
               d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs,
               read_rss_mib(), read_memavail_mib(), d[PANVK_STAT_PRIVBO_NEW] / 1048576.0 / secs,
@@ -436,13 +437,13 @@ stat_add(enum panvk_stat stat, uint64_t n)
       return;
    }
    fprintf(stats_file,
-           "t=%.0fs per_second: draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
+           "t=%.0fs per_second: fps=%.1f draws=%.0f tess=%.0f gs=%.0f xfb=%.0f polygon_mode=%.0f"
            " submits=%.0f cpu_ms_per_s: draw=%.0f submit=%.0f submit_wait=%.0f bc_refresh=%.0f"
            " us_per_draw=%.2f gpu_busy_pct=%.0f emu_mib_per_s=%.1f rss_mib=%.0f"
            " memavail_mib=%.0f privbo_new_mib_s=%.1f privbo_free_mib_s=%.1f vkmem_new_mib_s=%.1f"
            " vkmem_free_mib_s=%.1f emu_plan_mib_s=%.1f wls_mib_s=%.1f tls_mib_s=%.1f gs_skipped=%.0f reuse_mib_s=%.1f reuse_fallback=%.0f\n",
-           (now - stat_start_ns) / 1e9, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs,
-           d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
+           (now - stat_start_ns) / 1e9, d[PANVK_STAT_FRAME] / secs, d[PANVK_STAT_DRAW] / secs,
+           d[PANVK_STAT_TESS] / secs, d[PANVK_STAT_GS_APP] / secs, d[PANVK_STAT_XFB] / secs,
            d[PANVK_STAT_POLYGON] / secs, d[PANVK_STAT_SUBMIT] / secs,
            d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT] / 1e6 / secs,
            d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs, d[PANVK_STAT_NS_BC_REFRESH] / 1e6 / secs,

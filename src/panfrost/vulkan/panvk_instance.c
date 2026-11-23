@@ -24,6 +24,7 @@
 #include "pan_trace.h"
 
 #include "panvk_entrypoints.h"
+#include "panvk_gs_diag.h"
 #include "panvk_instance.h"
 #include "panvk_macros.h"
 #include "panvk_physical_device.h"
@@ -371,4 +372,15 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
 vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)
 {
    return panvk_GetInstanceProcAddr(instance, pName);
+}
+
+/* Counts presented frames for the PANVK_STATS fps figure, then runs the common WSI present. */
+VKAPI_ATTR VkResult VKAPI_CALL wsi_QueuePresentKHR(VkQueue queue,
+                                                   const VkPresentInfoKHR *pPresentInfo);
+
+VKAPI_ATTR VkResult VKAPI_CALL
+panvk_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
+{
+   panvk_stat_count(PANVK_STAT_FRAME);
+   return wsi_QueuePresentKHR(queue, pPresentInfo);
 }

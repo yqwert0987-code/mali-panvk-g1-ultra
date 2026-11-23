@@ -125,6 +125,7 @@ enum panvk_stat {
    PANVK_STAT_XFB,
    PANVK_STAT_POLYGON,
    PANVK_STAT_SUBMIT,
+   PANVK_STAT_FRAME, /* vkQueuePresentKHR calls */
    /* Cumulative nanoseconds of CPU time, summed over all threads. */
    PANVK_STAT_NS_DRAW,        /* recording draws (vkCmdDraw*) */
    PANVK_STAT_NS_SUBMIT,      /* whole vkQueueSubmit on the kbase path */
