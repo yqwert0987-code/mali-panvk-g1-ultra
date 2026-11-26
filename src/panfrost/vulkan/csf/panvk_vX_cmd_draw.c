@@ -6287,6 +6287,7 @@ panvk_per_arch(CmdEndRendering2KHR)(
       if (cmdbuf->state.gfx.render.fbds.gpu || inherits_render_ctx(cmdbuf)) {
          flush_tiling(cmdbuf);
          issue_fragment_jobs(cmdbuf);
+         panvk_stat_count(PANVK_STAT_FRAGJOB);
 
          handle_deferred_queries(cmdbuf);
       }

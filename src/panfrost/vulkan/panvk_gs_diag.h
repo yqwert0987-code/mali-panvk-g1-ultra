@@ -127,6 +127,7 @@ enum panvk_stat {
    PANVK_STAT_SUBMIT,
    PANVK_STAT_FRAME, /* vkQueuePresentKHR calls */
    PANVK_STAT_RENDERPASS, /* vkCmdBeginRendering calls */
+   PANVK_STAT_FRAGJOB, /* render passes that issued a fragment job */
    PANVK_STAT_ACQUIRE, /* vkAcquireNextImage(2)KHR calls */
    /* Cumulative nanoseconds of CPU time, summed over all threads. */
    PANVK_STAT_NS_DRAW,        /* recording draws (vkCmdDraw*) */
