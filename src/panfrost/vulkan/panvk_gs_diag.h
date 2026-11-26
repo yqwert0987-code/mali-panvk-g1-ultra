@@ -128,6 +128,10 @@ enum panvk_stat {
    PANVK_STAT_FRAME, /* vkQueuePresentKHR calls */
    PANVK_STAT_RENDERPASS, /* vkCmdBeginRendering calls */
    PANVK_STAT_FRAGJOB, /* render passes that issued a fragment job */
+   PANVK_STAT_RP_EMPTY, /* passes with no draw and no clear */
+   PANVK_STAT_RP_CLEAR, /* passes with no draw, only a clear */
+   PANVK_STAT_RP_1DRAW, /* passes with exactly 1 draw */
+   PANVK_STAT_RP_SMALL, /* passes with 2-4 draws */
    PANVK_STAT_ACQUIRE, /* vkAcquireNextImage(2)KHR calls */
    /* Cumulative nanoseconds of CPU time, summed over all threads. */
    PANVK_STAT_NS_DRAW,        /* recording draws (vkCmdDraw*) */

@@ -4835,6 +4835,7 @@ panvk_cmd_draw_untimed(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info d
       return;
 
    panvk_stat_count(PANVK_STAT_DRAW);
+   cmdbuf->state.gfx.render.stat_draws++;
 
    if (!draw.indirect.buffer_dev_addr)
       panvk_stats_add_draw(&cmdbuf->state.gfx, &cmdbuf->vk.dynamic_graphics_state, &draw);
@@ -6264,6 +6265,16 @@ panvk_per_arch(CmdEndRendering2KHR)(
             clear = true;
       }
 
+      {
+         const uint32_t nd = cmdbuf->state.gfx.render.stat_draws;
+         if (nd == 0)
+            panvk_stat_count(clear ? PANVK_STAT_RP_CLEAR : PANVK_STAT_RP_EMPTY);
+         else if (nd == 1)
+            panvk_stat_count(PANVK_STAT_RP_1DRAW);
+         else if (nd <= 4)
+            panvk_stat_count(PANVK_STAT_RP_SMALL);
+      }
+
       if (clear && !inherits_render_ctx(cmdbuf)) {
          bool needs_crc_tiler =
             (cmdbuf->flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT) &&
@@ -6310,6 +6321,8 @@ panvk_per_arch(CmdEndRendering2KHR)(
     * draws. */
    cmdbuf->state.gfx.render.flags = 0;
    cmdbuf->state.gfx.render.suspended = suspending;
+   if (!suspending)
+      cmdbuf->state.gfx.render.stat_draws = 0;
 
    /* If we're not suspending, we need to resolve attachments. */
    if (!suspending)

@@ -114,6 +114,9 @@ struct panvk_rendering_state {
    /* True if the last render pass was suspended. */
    bool suspended;
 
+   /* Draws recorded in the current render pass (PANVK_STATS only). */
+   uint32_t stat_draws;
+
    /* Blocks that can patch to flip the provoking vertex mode if we need to
     * emit FBDs/TDs before we know which mode the application is using */
    struct cs_maybe *maybe_set_tds_provoking_vertex;
