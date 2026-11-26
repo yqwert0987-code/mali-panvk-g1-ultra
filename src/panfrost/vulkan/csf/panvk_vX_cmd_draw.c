@@ -5280,6 +5280,8 @@ panvk_per_arch(CmdBeginRendering)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    ASSERTED struct panvk_cmd_graphics_state *state = &cmdbuf->state.gfx;
 
+   panvk_stat_count(PANVK_STAT_RENDERPASS);
+
    /* patch rendering info in-place for Android efr support */
    VkRenderingInfo local_rendering_info;
    VkRenderingAttachmentInfo local_color_att;
