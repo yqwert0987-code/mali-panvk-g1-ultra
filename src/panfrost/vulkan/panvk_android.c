@@ -8,6 +8,7 @@
 #include "panvk_device.h"
 #include "panvk_image.h"
 #include "panvk_entrypoints.h"
+#include "panvk_gs_diag.h"
 #include "panvk_physical_device.h"
 
 #include "kmod/kbase_kmod.h"
@@ -475,4 +476,16 @@ panvk_AcquireImageANDROID(VkDevice device, VkImage image, int nativeFenceFd,
    }
 
    return vk_common_AcquireImageANDROID(device, image, nativeFenceFd, semaphore, fence);
+}
+
+/* Android's loader owns the swapchain, so a frame reaches the driver as a release-image call
+ * rather than vkQueuePresentKHR. Count it for the PANVK_STATS fps figure. */
+VKAPI_ATTR VkResult VKAPI_CALL
+panvk_QueueSignalReleaseImageANDROID(VkQueue queue, uint32_t waitSemaphoreCount,
+                                     const VkSemaphore *pWaitSemaphores, VkImage image,
+                                     int *pNativeFenceFd)
+{
+   panvk_stat_count(PANVK_STAT_FRAME);
+   return vk_common_QueueSignalReleaseImageANDROID(queue, waitSemaphoreCount, pWaitSemaphores,
+                                                   image, pNativeFenceFd);
 }
