@@ -132,6 +132,9 @@ enum panvk_stat {
    PANVK_STAT_RP_CLEAR, /* passes with no draw, only a clear */
    PANVK_STAT_RP_1DRAW, /* passes with exactly 1 draw */
    PANVK_STAT_RP_SMALL, /* passes with 2-4 draws */
+   PANVK_STAT_META_BLIT,    /* vkCmdBlitImage/ResolveImage calls */
+   PANVK_STAT_META_CLEAR,   /* vkCmdClear* calls */
+   PANVK_STAT_META_GFXCOPY, /* image copies done through the graphics pipeline */
    PANVK_STAT_ACQUIRE, /* vkAcquireNextImage(2)KHR calls */
    /* Cumulative nanoseconds of CPU time, summed over all threads. */
    PANVK_STAT_NS_DRAW,        /* recording draws (vkCmdDraw*) */

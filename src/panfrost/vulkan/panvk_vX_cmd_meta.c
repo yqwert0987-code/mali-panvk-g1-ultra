@@ -16,6 +16,7 @@
 #endif
 
 #include "panvk_cmd_precomp.h"
+#include "panvk_gs_diag.h"
 #include "libpan.h"
 #include "libpan_copy.h"
 #include "libpan_dgc.h"
@@ -279,6 +280,7 @@ VKAPI_ATTR void VKAPI_CALL
 panvk_per_arch(CmdBlitImage2)(VkCommandBuffer commandBuffer,
                               const VkBlitImageInfo2 *pBlitImageInfo)
 {
+   panvk_stat_count(PANVK_STAT_META_BLIT);
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct panvk_cmd_meta_graphics_save_ctx save = {0};
@@ -292,6 +294,7 @@ VKAPI_ATTR void VKAPI_CALL
 panvk_per_arch(CmdResolveImage2)(VkCommandBuffer commandBuffer,
                                  const VkResolveImageInfo2 *pResolveImageInfo)
 {
+   panvk_stat_count(PANVK_STAT_META_BLIT);
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct panvk_cmd_meta_graphics_save_ctx save = {0};
@@ -308,6 +311,7 @@ panvk_per_arch(CmdClearAttachments)(VkCommandBuffer commandBuffer,
                                     uint32_t rectCount,
                                     const VkClearRect *pRects)
 {
+   panvk_stat_count(PANVK_STAT_META_CLEAR);
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct panvk_cmd_meta_graphics_save_ctx save = {0};
@@ -350,6 +354,7 @@ panvk_per_arch(CmdClearDepthStencilImage)(
    const VkClearDepthStencilValue *pDepthStencil, uint32_t rangeCount,
    const VkImageSubresourceRange *pRanges)
 {
+   panvk_stat_count(PANVK_STAT_META_CLEAR);
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_image, img, image);
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
@@ -369,6 +374,7 @@ panvk_per_arch(CmdClearColorImage)(VkCommandBuffer commandBuffer, VkImage image,
                                    uint32_t rangeCount,
                                    const VkImageSubresourceRange *pRanges)
 {
+   panvk_stat_count(PANVK_STAT_META_CLEAR);
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_image, img, image);
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
@@ -745,6 +751,7 @@ panvk_per_arch(CmdCopyMemoryToImageKHR)(
       panvk_meta_copy_get_image_properties(img, use_gfx_pipeline, true);
 
    if (use_gfx_pipeline) {
+      panvk_stat_count(PANVK_STAT_META_GFXCOPY);
       struct panvk_cmd_meta_graphics_save_ctx save = {0};
 
       meta_gfx_start(cmdbuf, &save);
@@ -961,6 +968,7 @@ panvk_per_arch(CmdCopyImage2)(VkCommandBuffer commandBuffer,
       panvk_meta_copy_get_image_properties(src_img, use_gfx_pipeline, false);
 
    if (use_gfx_pipeline) {
+      panvk_stat_count(PANVK_STAT_META_GFXCOPY);
       struct panvk_cmd_meta_graphics_save_ctx save = {0};
 
       meta_gfx_start(cmdbuf, &save);

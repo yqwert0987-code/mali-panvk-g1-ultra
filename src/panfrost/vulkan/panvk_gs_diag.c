@@ -423,12 +423,13 @@ stat_add(enum panvk_stat stat, uint64_t n)
    }
    if (brief_on()) {
       fprintf(stats_file,
-              "t=%.0f fps=%.1f acq=%.1f rp=%.0f fj=%.0f empty=%.0f clr=%.0f one=%.0f few=%.0f sub=%.0f d=%.0f tess=%.0f gpu=%.0f%% us/d=%.0f cpu_draw=%.0f sub_wait=%.0f"
+              "t=%.0f fps=%.1f acq=%.1f rp=%.0f fj=%.0f empty=%.0f clr=%.0f one=%.0f few=%.0f blit=%.0f mclr=%.0f gcopy=%.0f sub=%.0f d=%.0f tess=%.0f gpu=%.0f%% us/d=%.0f cpu_draw=%.0f sub_wait=%.0f"
               " rss=%.0f avail=%.0f pbo=%.0f reuse=%.0f miss=%.0f\n",
               (now - stat_start_ns) / 1e9, d[PANVK_STAT_FRAME] / secs, d[PANVK_STAT_ACQUIRE] / secs,
               d[PANVK_STAT_RENDERPASS] / secs, d[PANVK_STAT_FRAGJOB] / secs,
               d[PANVK_STAT_RP_EMPTY] / secs, d[PANVK_STAT_RP_CLEAR] / secs,
-              d[PANVK_STAT_RP_1DRAW] / secs, d[PANVK_STAT_RP_SMALL] / secs,
+              d[PANVK_STAT_RP_1DRAW] / secs, d[PANVK_STAT_RP_SMALL] / secs, d[PANVK_STAT_META_BLIT] / secs,
+              d[PANVK_STAT_META_CLEAR] / secs, d[PANVK_STAT_META_GFXCOPY] / secs,
               d[PANVK_STAT_SUBMIT] / secs, d[PANVK_STAT_DRAW] / secs, d[PANVK_STAT_TESS] / secs, d[PANVK_STAT_NS_GPU_BUSY] / 1e9 / secs * 100.0,
               d[PANVK_STAT_DRAW] ? d[PANVK_STAT_NS_DRAW] / 1e3 / d[PANVK_STAT_DRAW] : 0.0,
               d[PANVK_STAT_NS_DRAW] / 1e6 / secs, d[PANVK_STAT_NS_SUBMIT_WAIT] / 1e6 / secs,
